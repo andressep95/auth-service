@@ -137,11 +137,11 @@ func (s *AuthService) Login(ctx context.Context, req LoginRequest) (*LoginRespon
 
 	// Create session
 	session := &domain.Session{
-		ID:           uuid.New(),
-		UserID:       user.ID,
-		RefreshToken: hashedRefreshToken,
-		ExpiresAt:    time.Now().Add(s.cfg.JWT.RefreshTokenExpiry),
-		CreatedAt:    time.Now(),
+		ID:               uuid.New(),
+		UserID:           user.ID,
+		RefreshTokenHash: hashedRefreshToken,
+		ExpiresAt:        time.Now().Add(s.cfg.JWT.RefreshTokenExpiry),
+		CreatedAt:        time.Now(),
 	}
 
 	if err := s.sessionRepo.Create(ctx, session); err != nil {
@@ -223,7 +223,7 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*d
 	newHashedRefreshToken := hashToken(newTokenPair.RefreshToken)
 
 	// Update session with new refresh token
-	session.RefreshToken = newHashedRefreshToken
+	session.RefreshTokenHash = newHashedRefreshToken
 	session.ExpiresAt = time.Now().Add(s.cfg.JWT.RefreshTokenExpiry)
 	if err := s.sessionRepo.Update(ctx, session); err != nil {
 		return nil, err

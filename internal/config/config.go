@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"time"
@@ -15,6 +16,7 @@ type Config struct {
 	Redis    RedisConfig
 	JWT      JWTConfig
 	Auth     AuthConfig
+	CORS     CORSConfig
 }
 
 type ServerConfig struct {
@@ -54,6 +56,10 @@ type AuthConfig struct {
 	BcryptCost      int
 }
 
+type CORSConfig struct {
+	AllowedOrigins string
+}
+
 func Load() (*Config, error) {
 	// Intentar cargar .env (opcional en producción)
 	_ = godotenv.Load()
@@ -91,15 +97,28 @@ func Load() (*Config, error) {
 			LockDuration:    getDurationEnv("AUTH_LOCK_DURATION", 15*time.Minute),
 			BcryptCost:      getIntEnv("AUTH_BCRYPT_COST", 12),
 		},
+		CORS: CORSConfig{
+			AllowedOrigins: getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8080"),
+		},
 	}
 
 	return cfg, nil
 }
 
+// DSN returns the PostgreSQL connection string
+// Note: Password is included but not logged
 func (c *DatabaseConfig) DSN() string {
 	return fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		c.Host, c.Port, c.User, c.Password, c.DBName, c.SSLMode,
+	)
+}
+
+// SafeDSN returns DSN without password for logging
+func (c *DatabaseConfig) SafeDSN() string {
+	return fmt.Sprintf(
+		"host=%s port=%s user=%s dbname=%s sslmode=%s",
+		c.Host, c.Port, c.User, c.DBName, c.SSLMode,
 	)
 }
 
@@ -115,19 +134,31 @@ func getEnv(key, defaultValue string) string {
 }
 
 func getIntEnv(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		if intVal, err := strconv.Atoi(value); err == nil {
-			return intVal
-		}
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
 	}
-	return defaultValue
+	
+	intVal, err := strconv.Atoi(value)
+	if err != nil {
+		// Use structured logging to prevent log injection
+		log.Printf("[CONFIG] Invalid integer for key=%s, using default=%d", key, defaultValue)
+		return defaultValue
+	}
+	return intVal
 }
 
 func getDurationEnv(key string, defaultValue time.Duration) time.Duration {
-	if value := os.Getenv(key); value != "" {
-		if duration, err := time.ParseDuration(value); err == nil {
-			return duration
-		}
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
 	}
-	return defaultValue
+	
+	duration, err := time.ParseDuration(value)
+	if err != nil {
+		// Use structured logging to prevent log injection
+		log.Printf("[CONFIG] Invalid duration for key=%s, using default=%v", key, defaultValue)
+		return defaultValue
+	}
+	return duration
 }

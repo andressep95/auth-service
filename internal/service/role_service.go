@@ -32,22 +32,22 @@ func NewRoleService(roleRepo repository.RoleRepository, userRepo repository.User
 // CreateRole creates a new role
 func (s *RoleService) CreateRole(ctx context.Context, appID uuid.UUID, name, description string) (*domain.Role, error) {
 	// Check if role already exists
-	existing, _ := s.roleRepo.GetByName(ctx, appID, name)
-	if existing != nil {
+	existing, err := s.roleRepo.GetByName(ctx, appID, name)
+	if err == nil && existing != nil {
 		return nil, ErrRoleAlreadyExists
 	}
 
+	now := time.Now()
 	role := &domain.Role{
 		ID:          uuid.New(),
 		AppID:       appID,
 		Name:        name,
 		Description: description,
-		CreatedAt:   time.Now().Format(time.RFC3339),
-		UpdatedAt:   time.Now().Format(time.RFC3339),
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}
 
-	err := s.roleRepo.Create(ctx, role)
-	if err != nil {
+	if err = s.roleRepo.Create(ctx, role); err != nil {
 		return nil, err
 	}
 
@@ -68,12 +68,15 @@ func (s *RoleService) GetRolesByApp(ctx context.Context, appID uuid.UUID) ([]*do
 func (s *RoleService) UpdateRole(ctx context.Context, roleID uuid.UUID, name, description string) error {
 	role, err := s.roleRepo.GetByID(ctx, roleID)
 	if err != nil {
-		return ErrRoleNotFound
+		if err == ErrRoleNotFound {
+			return ErrRoleNotFound
+		}
+		return err
 	}
 
 	role.Name = name
 	role.Description = description
-	role.UpdatedAt = time.Now().Format(time.RFC3339)
+	role.UpdatedAt = time.Now()
 
 	return s.roleRepo.Update(ctx, role)
 }
@@ -98,7 +101,7 @@ func (s *RoleService) AssignRoleToUser(ctx context.Context, userID, roleID uuid.
 	// Verify user exists
 	_, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
-		return errors.New("user not found")
+		return ErrUserNotFound
 	}
 
 	// Verify role exists
@@ -153,8 +156,11 @@ func (s *RoleService) HasPermission(ctx context.Context, userID uuid.UUID, resou
 
 // HasRole checks if a user has a specific role
 func (s *RoleService) HasRole(ctx context.Context, userID uuid.UUID, roleName string) (bool, error) {
-	// Get base app ID (you might want to make this configurable)
-	baseAppID := uuid.MustParse("00000000-0000-0000-0000-000000000000")
+	// Get base app ID - using system default app
+	baseAppID, err := uuid.Parse("00000000-0000-0000-0000-000000000000")
+	if err != nil {
+		return false, err
+	}
 
 	roles, err := s.roleRepo.GetUserRolesByApp(ctx, userID, baseAppID)
 	if err != nil {

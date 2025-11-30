@@ -104,7 +104,7 @@ func main() {
 	// Setup global middlewares
 	app.Use(middleware.RecoveryMiddleware())
 	app.Use(middleware.LoggerMiddleware())
-	app.Use(middleware.CORSMiddleware())
+	app.Use(middleware.CORSMiddleware(cfg))
 
 	// Setup authorization middlewares
 	authMiddleware := middleware.AuthMiddleware(tokenService)
@@ -133,7 +133,9 @@ func main() {
 		log.Printf("🚀 Server starting on http://localhost%s", addr)
 		log.Printf("📝 Environment: %s", cfg.Server.Environment)
 		if err := app.Listen(addr); err != nil {
-			log.Fatalf("Server failed to start: %v", err)
+			// Don't use log.Fatalf in goroutine, send error to main
+			log.Printf("❌ Server failed to start: %v", err)
+			stop() // Trigger shutdown
 		}
 	}()
 
@@ -189,7 +191,9 @@ func initDB(cfg *config.Config) (*sqlx.DB, error) {
 	defer cancel()
 
 	if err := db.PingContext(ctx); err != nil {
-		db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			log.Printf("Error closing database after ping failure: %v", closeErr)
+		}
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
@@ -214,7 +218,9 @@ func initRedis(cfg *config.Config) (*redis.Client, error) {
 	defer cancel()
 
 	if err := client.Ping(ctx).Err(); err != nil {
-		client.Close()
+		if closeErr := client.Close(); closeErr != nil {
+			log.Printf("Error closing Redis after ping failure: %v", closeErr)
+		}
 		return nil, fmt.Errorf("failed to ping Redis: %w", err)
 	}
 
@@ -249,13 +255,18 @@ func loadRSAKeys(cfg *config.Config) ([]byte, []byte, error) {
 // customErrorHandler handles Fiber errors
 func customErrorHandler(c *fiber.Ctx, err error) error {
 	code := fiber.StatusInternalServerError
+	message := "Internal server error"
 
 	if e, ok := err.(*fiber.Error); ok {
 		code = e.Code
+		message = e.Message
 	}
+
+	// Log error for debugging (sanitized)
+	log.Printf("Error handling request [%s %s]: %v", c.Method(), c.Path(), err)
 
 	return c.Status(code).JSON(fiber.Map{
 		"error":   true,
-		"message": err.Error(),
+		"message": message,
 	})
 }

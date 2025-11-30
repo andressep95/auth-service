@@ -225,7 +225,7 @@ func (r *userRepository) GetUserRoles(ctx context.Context, userID, appID uuid.UU
 		SELECT r.name
 		FROM roles r
 		INNER JOIN user_roles ur ON r.id = ur.role_id
-		WHERE ur.user_id = $1 AND ur.app_id = $2`
+		WHERE ur.user_id = $1 AND r.app_id = $2`
 
 	var roles []string
 	err := r.db.SelectContext(ctx, &roles, query, userID, appID)

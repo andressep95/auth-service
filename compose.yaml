@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   auth-service:
     build:
@@ -27,6 +25,7 @@ services:
       - JWT_ISSUER=auth-service
       - AUTH_MAX_FAILED_LOGINS=5
       - AUTH_LOCK_DURATION=15m
+      - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8080,http://127.0.0.1:3000,http://127.0.0.1:8080
     volumes:
       - ./keys:/keys:ro
       - ./migrations:/migrations:ro

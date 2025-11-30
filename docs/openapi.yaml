@@ -1,0 +1,927 @@
+openapi: 3.0.3
+info:
+  title: Auth Service API
+  description: |
+    Servicio de autenticación y autorización con soporte para:
+    - Registro y login de usuarios
+    - Gestión de sesiones con JWT (RS256)
+    - Sistema RBAC (Role-Based Access Control)
+    - Control de acceso granular con permisos
+    - Multi-tenancy mediante App ID
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@authservice.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Desarrollo local
+  - url: https://api.production.com
+    description: Producción
+
+tags:
+  - name: Health
+    description: Endpoints de health check
+  - name: Authentication
+    description: Registro, login, refresh y logout
+  - name: Users
+    description: Gestión de perfil de usuario
+  - name: Roles
+    description: Gestión de roles (Admin)
+  - name: Permissions
+    description: Consulta de permisos
+
+security:
+  - BearerAuth: []
+
+paths:
+  # ===== HEALTH CHECKS =====
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check básico
+      description: Verifica que el servicio está corriendo
+      security: []
+      responses:
+        '200':
+          description: Servicio saludable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /ready:
+    get:
+      tags:
+        - Health
+      summary: Readiness check
+      description: Verifica que el servicio está listo para recibir tráfico
+      security: []
+      responses:
+        '200':
+          description: Servicio listo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ready:
+                    type: boolean
+                  database:
+                    type: string
+                    example: connected
+                  redis:
+                    type: string
+                    example: connected
+
+  # ===== AUTHENTICATION =====
+  /api/v1/auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Registrar nuevo usuario
+      description: |
+        Crea un nuevo usuario en el sistema. El rol "user" se asigna automáticamente.
+        La contraseña debe cumplir con los requisitos de seguridad.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Usuario registrado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+                  message:
+                    type: string
+                    example: User registered successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: El email ya está registrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Iniciar sesión
+      description: |
+        Autentica un usuario y devuelve tokens JWT.
+        - Access Token: 15 minutos de validez
+        - Refresh Token: 7 días de validez
+
+        El sistema bloquea la cuenta después de 5 intentos fallidos.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login exitoso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          description: Credenciales inválidas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '423':
+          description: Cuenta bloqueada por intentos fallidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Renovar tokens
+      description: |
+        Obtiene un nuevo par de tokens usando el refresh token.
+        Implementa rotación de tokens (el refresh token anterior se invalida).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refresh_token
+              properties:
+                refresh_token:
+                  type: string
+                  description: Refresh token obtenido en login
+                  example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+      responses:
+        '200':
+          description: Tokens renovados exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: Cerrar sesión
+      description: |
+        Invalida la sesión actual eliminando el refresh token.
+        El access token seguirá válido hasta su expiración (máx 15 min).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refresh_token
+              properties:
+                refresh_token:
+                  type: string
+                  example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+      responses:
+        '200':
+          description: Sesión cerrada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Logged out successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  # ===== USERS =====
+  /api/v1/users/me:
+    get:
+      tags:
+        - Users
+      summary: Obtener perfil del usuario actual
+      description: Retorna la información del usuario autenticado
+      responses:
+        '200':
+          description: Perfil del usuario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/users/me/roles:
+    get:
+      tags:
+        - Users
+        - Roles
+      summary: Obtener mis roles
+      description: Lista todos los roles asignados al usuario actual
+      responses:
+        '200':
+          description: Lista de roles del usuario
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  roles:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Role'
+                  count:
+                    type: integer
+                    example: 2
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/users/me/permissions:
+    get:
+      tags:
+        - Users
+        - Permissions
+      summary: Obtener mis permisos
+      description: |
+        Lista todos los permisos del usuario actual.
+        Los permisos se calculan agregando todos los permisos de todos sus roles.
+      responses:
+        '200':
+          description: Lista de permisos del usuario
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  permissions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Permission'
+                  count:
+                    type: integer
+                    example: 14
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ===== ADMIN - ROLES =====
+  /api/v1/admin/roles:
+    get:
+      tags:
+        - Roles
+      summary: Listar roles
+      description: |
+        Obtiene todos los roles de una aplicación específica.
+        **Requiere rol:** admin
+      parameters:
+        - name: app_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID de la aplicación
+          example: 00000000-0000-0000-0000-000000000000
+      responses:
+        '200':
+          description: Lista de roles
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  roles:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Role'
+                  count:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags:
+        - Roles
+      summary: Crear rol
+      description: |
+        Crea un nuevo rol en el sistema.
+        **Requiere rol:** admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoleRequest'
+      responses:
+        '201':
+          description: Rol creado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Ya existe un rol con ese nombre en la aplicación
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/admin/roles/{id}:
+    get:
+      tags:
+        - Roles
+      summary: Obtener rol por ID
+      description: |
+        Obtiene los detalles de un rol específico.
+        **Requiere rol:** admin
+      parameters:
+        - $ref: '#/components/parameters/RoleId'
+      responses:
+        '200':
+          description: Detalles del rol
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - Roles
+      summary: Actualizar rol
+      description: |
+        Actualiza la descripción de un rol existente.
+        No se puede cambiar el nombre del rol.
+        **Requiere rol:** admin
+      parameters:
+        - $ref: '#/components/parameters/RoleId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                description:
+                  type: string
+                  example: Editor con permisos ampliados
+      responses:
+        '200':
+          description: Rol actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Roles
+      summary: Eliminar rol
+      description: |
+        Elimina un rol del sistema.
+        No se puede eliminar un rol que tenga usuarios asignados.
+        **Requiere rol:** admin
+      parameters:
+        - $ref: '#/components/parameters/RoleId'
+      responses:
+        '200':
+          description: Rol eliminado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Role deleted successfully
+        '400':
+          description: No se puede eliminar un rol con usuarios asignados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/admin/roles/{id}/permissions:
+    get:
+      tags:
+        - Roles
+        - Permissions
+      summary: Obtener permisos de un rol
+      description: |
+        Lista todos los permisos asignados a un rol específico.
+        **Requiere rol:** admin
+      parameters:
+        - $ref: '#/components/parameters/RoleId'
+      responses:
+        '200':
+          description: Lista de permisos del rol
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  permissions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Permission'
+                  count:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ===== ADMIN - USER ROLES =====
+  /api/v1/admin/users/{userId}/roles:
+    get:
+      tags:
+        - Roles
+        - Users
+      summary: Obtener roles de un usuario
+      description: |
+        Lista todos los roles asignados a un usuario específico.
+        **Requiere rol:** admin
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: Lista de roles del usuario
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  roles:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Role'
+                  count:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/admin/users/{userId}/roles/{roleId}:
+    post:
+      tags:
+        - Roles
+        - Users
+      summary: Asignar rol a usuario
+      description: |
+        Asigna un rol existente a un usuario.
+        Si el usuario ya tiene el rol, no hace nada (idempotente).
+        **Requiere rol:** admin
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - $ref: '#/components/parameters/RoleId'
+      responses:
+        '200':
+          description: Rol asignado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Role assigned successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - Roles
+        - Users
+      summary: Remover rol de usuario
+      description: |
+        Elimina un rol de un usuario.
+        **Requiere rol:** admin
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - $ref: '#/components/parameters/RoleId'
+      responses:
+        '200':
+          description: Rol removido exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Role removed successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ===== MODERATOR =====
+  /api/v1/moderator/users/{userId}/roles:
+    get:
+      tags:
+        - Roles
+        - Users
+      summary: Ver roles de usuario (Moderador)
+      description: |
+        Lista los roles de un usuario específico.
+        **Requiere rol:** admin o moderator
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: Lista de roles del usuario
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  roles:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Role'
+                  count:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+# ===== COMPONENTS =====
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT token obtenido del endpoint /api/v1/auth/login o /api/v1/auth/refresh.
+        Formato: `Authorization: Bearer <token>`
+
+  parameters:
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: UUID del usuario
+      example: 123e4567-e89b-12d3-a456-426614174000
+
+    RoleId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: UUID del rol
+      example: 20000000-0000-0000-0000-000000000001
+
+  schemas:
+    # ===== REQUEST SCHEMAS =====
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+        - first_name
+        - last_name
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          minLength: 8
+          description: |
+            Debe contener al menos:
+            - 8 caracteres
+            - 1 mayúscula
+            - 1 minúscula
+            - 1 número
+            - 1 carácter especial
+          example: SecurePass123!
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: Juan
+        last_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: Pérez
+        phone_number:
+          type: string
+          nullable: true
+          example: "+56912345678"
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+        - app_id
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        password:
+          type: string
+          format: password
+          example: SecurePass123!
+        app_id:
+          type: string
+          format: uuid
+          description: UUID de la aplicación que solicita el login
+          example: 00000000-0000-0000-0000-000000000000
+
+    CreateRoleRequest:
+      type: object
+      required:
+        - app_id
+        - name
+        - description
+      properties:
+        app_id:
+          type: string
+          format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+          pattern: '^[a-z0-9_]+$'
+          description: Nombre del rol (solo minúsculas, números y guión bajo)
+          example: content_editor
+        description:
+          type: string
+          maxLength: 255
+          example: Editor de contenido con permisos de publicación
+
+    # ===== RESPONSE SCHEMAS =====
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 123e4567-e89b-12d3-a456-426614174000
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        first_name:
+          type: string
+          example: Juan
+        last_name:
+          type: string
+          example: Pérez
+        phone_number:
+          type: string
+          nullable: true
+          example: "+56912345678"
+        email_verified:
+          type: boolean
+          example: false
+        phone_verified:
+          type: boolean
+          example: false
+        status:
+          type: string
+          enum: [active, inactive, suspended, deleted]
+          example: active
+        failed_login_attempts:
+          type: integer
+          example: 0
+        account_locked_until:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+        created_at:
+          type: string
+          format: date-time
+          example: 2025-01-15T10:30:00Z
+        updated_at:
+          type: string
+          format: date-time
+          example: 2025-01-15T10:30:00Z
+
+    Role:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 20000000-0000-0000-0000-000000000001
+        app_id:
+          type: string
+          format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+        name:
+          type: string
+          example: user
+        description:
+          type: string
+          example: Usuario estándar con permisos básicos
+        created_at:
+          type: string
+          format: date-time
+          example: 2025-01-15T10:00:00Z
+
+    Permission:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 10000000-0000-0000-0000-000000000001
+        app_id:
+          type: string
+          format: uuid
+          example: 00000000-0000-0000-0000-000000000000
+        resource:
+          type: string
+          description: Recurso sobre el que se aplica el permiso
+          example: users
+        action:
+          type: string
+          description: Acción permitida sobre el recurso
+          example: read:own
+        description:
+          type: string
+          example: Ver y leer el propio perfil de usuario
+        created_at:
+          type: string
+          format: date-time
+          example: 2025-01-15T10:00:00Z
+
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: JWT token con 15 minutos de validez
+          example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMn0.POstGetfAytaZS82wHcjoTyoqhMyxXiWdR7Nn7A29DNSl0EiXLdwJ6xC6AfgZWF1bOsS_TuYI3OWDEjXwaYtuKY
+        refresh_token:
+          type: string
+          description: Token para renovar el access_token (7 días de validez)
+          example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+          description: Tiempo de expiración del access_token en segundos
+          example: 900
+        user:
+          $ref: '#/components/schemas/User'
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Invalid credentials
+        code:
+          type: string
+          example: INVALID_CREDENTIALS
+        details:
+          type: object
+          nullable: true
+          additionalProperties: true
+
+  # ===== RESPONSES =====
+  responses:
+    BadRequest:
+      description: Request inválido (validación fallida)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: true
+            message: Validation failed
+            details:
+              email: must be a valid email
+              password: must be at least 8 characters
+
+    Unauthorized:
+      description: No autenticado (token inválido o expirado)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: true
+            message: Unauthorized
+            code: INVALID_TOKEN
+
+    Forbidden:
+      description: No autorizado (permisos insuficientes)
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "Forbidden: insufficient permissions"
+              required_roles:
+                type: array
+                items:
+                  type: string
+                example:
+                  - admin
+
+    NotFound:
+      description: Recurso no encontrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: true
+            message: Resource not found
+            code: NOT_FOUND
