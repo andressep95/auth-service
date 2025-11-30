@@ -13,6 +13,7 @@ func SetupRoutes(
 	healthHandler *HealthHandler,
 	jwksHandler *JWKSHandler,
 	setupHandler *SetupHandler,
+	appHandler *AppHandler,
 	authMiddleware fiber.Handler,
 	requireAdmin fiber.Handler,
 	requireModerator fiber.Handler,
@@ -71,4 +72,10 @@ func SetupRoutes(
 	// Moderator routes (require moderator or admin role)
 	moderator := api.Group("/moderator", authMiddleware, requireModerator)
 	moderator.Get("/users/:userId/roles", roleHandler.GetUserRoles)
+
+	// Super admin routes (require super_admin role)
+	superAdmin := api.Group("/super-admin", authMiddleware, requireAdmin)
+	superAdmin.Post("/apps", appHandler.CreateApp)
+	superAdmin.Get("/apps", appHandler.ListApps)
+	superAdmin.Get("/apps/:id", appHandler.GetApp)
 }

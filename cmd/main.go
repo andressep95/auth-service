@@ -119,6 +119,10 @@ func main() {
 	// Set circular dependency: UserService needs AuthService for token blacklisting
 	userService.SetAuthService(authService)
 
+	// Initialize services
+	appRepo := postgres.NewAppRepository(db)
+	appService := service.NewAppService(appRepo)
+
 	// Initialize handlers
 	authHandler := handler.NewAuthHandler(authService, validate)
 	userHandler := handler.NewUserHandler(userService, validate)
@@ -127,6 +131,7 @@ func main() {
 	healthHandler := handler.NewHealthHandler()
 	jwksHandler := handler.NewJWKSHandler(tokenService.GetPublicKey(), "2024-12-01")
 	setupHandler := handler.NewSetupHandler(userService, roleService, validate)
+	appHandler := handler.NewAppHandler(appService, validate)
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
@@ -157,6 +162,7 @@ func main() {
 		healthHandler,
 		jwksHandler,
 		setupHandler,
+		appHandler,
 		authMiddleware,
 		requireAdmin,
 		requireModerator,
