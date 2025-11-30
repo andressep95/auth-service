@@ -1,50 +1,52 @@
-# Despliegue en Dokploy (Contabo)
+# Despliegue en Dokploy (Contabo) - Guía Definitiva
 
-## 🎯 Ventajas del JWKS en Dokploy
+## 🎯 Solución para Dokploy
 
-Con JWKS implementado, tus microservicios en Dokploy se configuran automáticamente:
+**Problema resuelto:** Las claves RSA se generan **automáticamente** dentro del contenedor al iniciar. No necesitas volúmenes ni configuración manual.
 
 ```
-✅ No copiar archivos public.pem manualmente
-✅ Nuevos servicios se auto-configuran
-✅ Rotación de claves sin downtime
-✅ URL única para todos: https://auth.tudominio.com/.well-known/jwks.json
+✅ Claves se generan automáticamente al iniciar
+✅ JWKS expone las claves vía HTTP
+✅ Backends obtienen claves del endpoint JWKS
+✅ Sin volúmenes, sin archivos compartidos
+✅ 100% compatible con Dockerfile en Dokploy
 ```
 
 ---
 
-## 📋 Paso 1: Desplegar Auth Service
+## 📋 Paso 1: Desplegar Auth Service en Dokploy
 
-### En Dokploy
+### 1. Crear Servicio en Dokploy
 
-1. **Crear nuevo servicio**
-   - Tipo: Docker
-   - Nombre: `auth-service`
-   - Puerto: `8080`
+- **Tipo:** GitHub/Docker
+- **Nombre:** `auth-service`
+- **Puerto:** `8080`
+- **Dockerfile:** `Dockerfile` (en la raíz del repo)
 
-2. **Variables de entorno**
+### 2. Variables de Entorno
 
 ```bash
 # Server
 SERVER_PORT=8080
 ENVIRONMENT=production
 
-# Database (usar DB de Dokploy)
-DB_HOST=postgres
+# Database (PostgreSQL de Dokploy)
+DB_HOST=<tu-postgres-host>
 DB_PORT=5432
 DB_USER=auth
-DB_PASSWORD=<tu-password-seguro>
+DB_PASSWORD=<password-seguro>
 DB_NAME=authdb
 DB_SSLMODE=require
 
-# Redis (usar Redis de Dokploy)
-REDIS_HOST=redis
+# Redis (Redis de Dokploy)
+REDIS_HOST=<tu-redis-host>
 REDIS_PORT=6379
-REDIS_PASSWORD=<tu-password-redis>
+REDIS_PASSWORD=<password-redis>
+REDIS_DB=0
 
-# JWT
-JWT_PRIVATE_KEY_PATH=/keys/private.pem
-JWT_PUBLIC_KEY_PATH=/keys/public.pem
+# JWT (las claves se generan automáticamente)
+JWT_PRIVATE_KEY_PATH=/app/keys/private.pem
+JWT_PUBLIC_KEY_PATH=/app/keys/public.pem
 JWT_ACCESS_EXPIRY=15m
 JWT_REFRESH_EXPIRY=168h
 JWT_ISSUER=auth-service
@@ -58,21 +60,60 @@ EMAIL_PROVIDER=resend
 EMAIL_API_KEY=<tu-resend-api-key>
 EMAIL_FROM_EMAIL=noreply@tudominio.com
 EMAIL_FROM_NAME=Tu App
+EMAIL_BASE_URL=https://app.tudominio.com
+EMAIL_VERIFICATION_URL=https://app.tudominio.com/verify-email
+EMAIL_RESET_URL=https://app.tudominio.com/reset-password
 ```
 
-3. **Volúmenes (para claves RSA)**
+### 3. Configurar Dominio
 
-```
-./keys:/keys:ro
-```
+- **Dominio:** `auth.tudominio.com`
+- **SSL:** Automático (Let's Encrypt)
 
-4. **Dominio**
-   - Configurar: `auth.tudominio.com`
-   - SSL: Automático con Let's Encrypt
+### 4. Deploy
+
+```bash
+# Dokploy detecta el Dockerfile y construye automáticamente
+# Al iniciar, el contenedor:
+# 1. Genera claves RSA si no existen
+# 2. Inicia el servidor
+# 3. Expone JWKS en /.well-known/jwks.json
+```
 
 ---
 
-## 📋 Paso 2: Desplegar Backend (Node.js ejemplo)
+## 🔄 ¿Cómo Funciona?
+
+### Flujo de Inicio del Contenedor
+
+```
+1. Container inicia
+2. docker-entrypoint.sh ejecuta
+3. Verifica si existen /app/keys/private.pem y public.pem
+4. Si NO existen → Genera claves RSA 4096 bits
+5. Si SÍ existen → Usa las existentes
+6. Inicia aplicación Go
+7. JWKS endpoint disponible en /.well-known/jwks.json
+```
+
+### Persistencia de Claves
+
+**Opción 1: Volumen Persistente (Recomendado)**
+
+En Dokploy, agregar volumen:
+```
+/app/keys → Volumen persistente
+```
+
+Esto mantiene las mismas claves entre reinicios.
+
+**Opción 2: Sin Volumen (Desarrollo)**
+
+Las claves se regeneran en cada deploy. Los tokens antiguos se invalidan.
+
+---
+
+## 📋 Paso 2: Desplegar Backend (Node.js)
 
 ### Dockerfile
 
@@ -81,9 +122,11 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# Instalar dependencias
 COPY package*.json ./
 RUN npm ci --only=production
 
+# Copiar código
 COPY . .
 
 EXPOSE 4000
@@ -91,27 +134,27 @@ EXPOSE 4000
 CMD ["node", "server.js"]
 ```
 
-### Variables de entorno en Dokploy
+### Variables de Entorno en Dokploy
 
 ```bash
 PORT=4000
 NODE_ENV=production
 
-# JWKS URL (¡Solo esto!)
+# ⭐ SOLO NECESITAS ESTO PARA AUTH
 AUTH_JWKS_URL=https://auth.tudominio.com/.well-known/jwks.json
 
 # Tu base de datos
-DATABASE_URL=postgresql://...
+DATABASE_URL=postgresql://user:pass@host:5432/dbname
 ```
 
-### Código del backend
+### Código del Backend
 
 ```javascript
 // middleware/auth.js
 const jwksClient = require('jwks-rsa');
 const jwt = require('jsonwebtoken');
 
-// Cliente JWKS - obtiene claves automáticamente
+// Cliente JWKS - obtiene claves automáticamente del Auth Service
 const client = jwksClient({
   jwksUri: process.env.AUTH_JWKS_URL,
   cache: true,
@@ -131,7 +174,7 @@ function authenticate(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '');
   
   if (!token) {
-    return res.status(401).json({ error: 'No token' });
+    return res.status(401).json({ error: 'No token provided' });
   }
   
   jwt.verify(token, getKey, { algorithms: ['RS256'] }, (err, decoded) => {
@@ -150,12 +193,27 @@ function authenticate(req, res, next) {
 }
 
 module.exports = { authenticate };
+
+// server.js
+const express = require('express');
+const { authenticate } = require('./middleware/auth');
+
+const app = express();
+
+app.get('/api/products', authenticate, (req, res) => {
+  // req.user contiene la info del token
+  console.log('User:', req.user.id, req.user.email);
+  res.json({ products: [] });
+});
+
+app.listen(4000, () => console.log('Server running on port 4000'));
 ```
 
 ### package.json
 
 ```json
 {
+  "name": "backend-api",
   "dependencies": {
     "express": "^4.18.2",
     "jsonwebtoken": "^9.0.2",
@@ -166,21 +224,39 @@ module.exports = { authenticate };
 
 ---
 
-## 📋 Paso 3: Desplegar Frontend (React ejemplo)
+## 📋 Paso 3: Desplegar Frontend (React)
 
-### Variables de entorno en Dokploy
+### Dockerfile
+
+```dockerfile
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+FROM nginx:alpine
+COPY --from=builder /app/build /usr/share/nginx/html
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+```
+
+### Variables de Entorno en Dokploy
 
 ```bash
 REACT_APP_AUTH_URL=https://auth.tudominio.com
 REACT_APP_API_URL=https://api.tudominio.com
+REACT_APP_APP_ID=00000000-0000-0000-0000-000000000000
 ```
 
-### Código del frontend
+### Código del Frontend
 
 ```javascript
 // src/services/auth.js
 const AUTH_API = process.env.REACT_APP_AUTH_URL;
-const APP_ID = '00000000-0000-0000-0000-000000000000';
+const APP_ID = process.env.REACT_APP_APP_ID;
 
 export async function login(email, password) {
   const response = await fetch(`${AUTH_API}/api/v1/auth/login`, {
@@ -188,6 +264,8 @@ export async function login(email, password) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password, app_id: APP_ID })
   });
+  
+  if (!response.ok) throw new Error('Login failed');
   
   const data = await response.json();
   
@@ -197,87 +275,77 @@ export async function login(email, password) {
   return data;
 }
 
+export function logout() {
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+}
+
+export function getToken() {
+  return localStorage.getItem('access_token');
+}
+
 // src/services/api.js
+import { getToken, logout } from './auth';
+
 const API_URL = process.env.REACT_APP_API_URL;
 
 export async function apiRequest(endpoint, options = {}) {
-  const token = localStorage.getItem('access_token');
+  const token = getToken();
   
   const response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
     headers: {
       ...options.headers,
-      'Authorization': `Bearer ${token}`
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
     }
   });
   
   if (response.status === 401) {
-    // Token expirado, redirigir a login
+    logout();
     window.location.href = '/login';
+    throw new Error('Unauthorized');
   }
   
   return response.json();
 }
-```
 
----
+// Ejemplo de uso
+import { apiRequest } from './services/api';
 
-## 🔧 Configuración de Servicios en Dokploy
-
-### Estructura recomendada
-
-```
-Proyecto: mi-app
-├── auth-service (puerto 8080)
-│   └── Dominio: auth.tudominio.com
-├── backend-api (puerto 4000)
-│   └── Dominio: api.tudominio.com
-├── frontend (puerto 80)
-│   └── Dominio: app.tudominio.com
-├── postgres (interno)
-└── redis (interno)
-```
-
-### Red interna
-
-Todos los servicios en Dokploy están en la misma red Docker, pueden comunicarse por nombre:
-
-```javascript
-// Backend puede llamar directamente (interno)
-const response = await fetch('http://auth-service:8080/.well-known/jwks.json');
-
-// Frontend usa dominio público (externo)
-const response = await fetch('https://auth.tudominio.com/api/v1/auth/login');
-```
-
----
-
-## 🧪 Probar JWKS
-
-### 1. Verificar endpoint JWKS
-
-```bash
-curl https://auth.tudominio.com/.well-known/jwks.json
-```
-
-**Respuesta esperada:**
-
-```json
-{
-  "keys": [
-    {
-      "kty": "RSA",
-      "use": "sig",
-      "kid": "2024-12-01",
-      "alg": "RS256",
-      "n": "xGOr-H7A...",
-      "e": "AQAB"
-    }
-  ]
+async function getProducts() {
+  const data = await apiRequest('/api/products');
+  return data.products;
 }
 ```
 
-### 2. Probar login
+---
+
+## 🧪 Verificación Post-Deploy
+
+### 1. Verificar Auth Service
+
+```bash
+# Health check
+curl https://auth.tudominio.com/health
+
+# JWKS endpoint
+curl https://auth.tudominio.com/.well-known/jwks.json
+
+# Deberías ver:
+{
+  "keys": [{
+    "kty": "RSA",
+    "use": "sig",
+    "kid": "2024-12-01",
+    "alg": "RS256",
+    "n": "xGOr...",
+    "e": "AQAB"
+  }]
+}
+```
+
+### 2. Probar Login
 
 ```bash
 curl -X POST https://auth.tudominio.com/api/v1/auth/login \
@@ -287,155 +355,142 @@ curl -X POST https://auth.tudominio.com/api/v1/auth/login \
     "password": "Admin123!",
     "app_id": "00000000-0000-0000-0000-000000000000"
   }'
+
+# Guarda el access_token de la respuesta
 ```
 
-### 3. Probar backend con token
+### 3. Probar Backend con Token
 
 ```bash
-TOKEN="<access_token_del_login>"
+TOKEN="<access_token_del_paso_anterior>"
 
 curl https://api.tudominio.com/api/products \
   -H "Authorization: Bearer $TOKEN"
+
+# Debería retornar datos (no 401)
 ```
 
 ---
 
-## 🔄 Agregar Nuevo Microservicio
+## 🔄 Rotación Automática de Claves (Opcional)
 
-### Antes (sin JWKS)
-
-```bash
-1. Copiar public.pem al nuevo servicio ❌
-2. Configurar path del archivo ❌
-3. Montar volumen en Docker ❌
-4. Reiniciar servicio ❌
-```
-
-### Ahora (con JWKS)
+### Opción 1: Manual (Recomendado para empezar)
 
 ```bash
-1. Agregar variable: AUTH_JWKS_URL=https://auth.tudominio.com/.well-known/jwks.json ✅
-2. Listo! ✅
+# Cada 3-6 meses
+1. Redeploy del auth-service en Dokploy
+2. Las claves se regeneran automáticamente
+3. JWKS se actualiza automáticamente
+4. Backends obtienen nuevas claves automáticamente
 ```
 
-**Ejemplo Python (FastAPI):**
+### Opción 2: Automática con Cron (Futuro)
 
-```python
-# main.py
-import os
-from fastapi import FastAPI, Depends, HTTPException
-from jose import jwt, JWTError
-import requests
+```go
+// internal/service/key_rotation_service.go
+package service
 
-app = FastAPI()
+import (
+    "crypto/rand"
+    "crypto/rsa"
+    "crypto/x509"
+    "encoding/pem"
+    "os"
+    "time"
+)
 
-JWKS_URL = os.getenv('AUTH_JWKS_URL')
+type KeyRotationService struct {
+    privateKeyPath string
+    publicKeyPath  string
+    rotationPeriod time.Duration
+}
 
-# Cachear JWKS
-jwks_cache = None
-jwks_cache_time = 0
-
-def get_jwks():
-    global jwks_cache, jwks_cache_time
-    import time
+func (s *KeyRotationService) StartAutoRotation() {
+    ticker := time.NewTicker(s.rotationPeriod)
     
-    # Cache por 10 minutos
-    if jwks_cache and (time.time() - jwks_cache_time) < 600:
-        return jwks_cache
+    go func() {
+        for range ticker.C {
+            s.rotateKeys()
+        }
+    }()
+}
+
+func (s *KeyRotationService) rotateKeys() error {
+    // Generar nueva clave
+    privateKey, err := rsa.GenerateKey(rand.Reader, 4096)
+    if err != nil {
+        return err
+    }
     
-    response = requests.get(JWKS_URL)
-    jwks_cache = response.json()
-    jwks_cache_time = time.time()
-    return jwks_cache
-
-def verify_token(token: str):
-    try:
-        jwks = get_jwks()
-        header = jwt.get_unverified_header(token)
-        
-        # Encontrar clave correcta
-        key = next((k for k in jwks['keys'] if k['kid'] == header['kid']), None)
-        if not key:
-            raise HTTPException(401, "Invalid token")
-        
-        # Validar token
-        payload = jwt.decode(token, key, algorithms=['RS256'])
-        return payload
-    except JWTError:
-        raise HTTPException(401, "Invalid token")
-
-@app.get("/products")
-def get_products(token: str = Depends(verify_token)):
-    return {"user_id": token['uid'], "products": []}
-```
-
-**Dockerfile:**
-
-```dockerfile
-FROM python:3.11-slim
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-COPY . .
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "4000"]
-```
-
-**requirements.txt:**
-
-```
-fastapi
-uvicorn
-python-jose[cryptography]
-requests
-```
-
-**En Dokploy:**
-
-```bash
-AUTH_JWKS_URL=https://auth.tudominio.com/.well-known/jwks.json
+    // Guardar clave privada
+    privateFile, _ := os.Create(s.privateKeyPath)
+    defer privateFile.Close()
+    
+    pem.Encode(privateFile, &pem.Block{
+        Type:  "RSA PRIVATE KEY",
+        Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
+    })
+    
+    // Guardar clave pública
+    publicFile, _ := os.Create(s.publicKeyPath)
+    defer publicFile.Close()
+    
+    publicBytes, _ := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
+    pem.Encode(publicFile, &pem.Block{
+        Type:  "PUBLIC KEY",
+        Bytes: publicBytes,
+    })
+    
+    // Recargar TokenService con nuevas claves
+    // (implementar lógica de recarga)
+    
+    return nil
+}
 ```
 
 ---
 
-## 🔒 Rotación de Claves (Futuro)
+## 🏗️ Arquitectura Final en Dokploy
 
-Cuando necesites rotar claves:
-
-```bash
-# 1. Generar nueva clave
-openssl genrsa -out keys/private-new.pem 4096
-openssl rsa -in keys/private-new.pem -pubout -out keys/public-new.pem
-
-# 2. Actualizar Auth Service para publicar AMBAS claves en JWKS
-# (modificar código para incluir múltiples keys)
-
-# 3. Esperar 15 minutos (expiración de tokens)
-
-# 4. Eliminar clave vieja del JWKS
-
-# ✅ Sin downtime, sin actualizar backends
 ```
-
----
-
-## 📊 Monitoreo
-
-### Logs en Dokploy
-
-```bash
-# Ver logs del auth-service
-dokploy logs auth-service
-
-# Ver requests al JWKS
-dokploy logs auth-service | grep "/.well-known/jwks.json"
+┌─────────────────────────────────────────────────────────┐
+│                    Internet                             │
+└────────────────────┬────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────┐
+│              Dokploy (Contabo VPS)                      │
+│                                                         │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  auth.tudominio.com (Auth Service)               │  │
+│  │  - Puerto: 8080                                  │  │
+│  │  - Claves RSA auto-generadas                    │  │
+│  │  - JWKS: /.well-known/jwks.json                 │  │
+│  └──────────────────────────────────────────────────┘  │
+│                     ▲                                   │
+│                     │ JWKS                              │
+│  ┌──────────────────┴───────────────────────────────┐  │
+│  │  api.tudominio.com (Backend API)                 │  │
+│  │  - Puerto: 4000                                  │  │
+│  │  - Obtiene claves de JWKS                       │  │
+│  │  - Valida tokens automáticamente                │  │
+│  └──────────────────────────────────────────────────┘  │
+│                                                         │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  app.tudominio.com (Frontend)                    │  │
+│  │  - Puerto: 80                                    │  │
+│  │  - Envía tokens al backend                      │  │
+│  └──────────────────────────────────────────────────┘  │
+│                                                         │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  PostgreSQL (Base de datos)                     │  │
+│  └──────────────────────────────────────────────────┘  │
+│                                                         │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  Redis (Cache y Blacklist)                      │  │
+│  └──────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
 ```
-
-### Métricas importantes
-
-- Requests a `/health` → Uptime
-- Requests a `/.well-known/jwks.json` → Backends obteniendo claves
-- Requests a `/api/v1/auth/login` → Logins
-- Errores 401 → Tokens inválidos
 
 ---
 
@@ -443,77 +498,107 @@ dokploy logs auth-service | grep "/.well-known/jwks.json"
 
 ### Auth Service
 
+- [ ] Repo conectado en Dokploy
 - [ ] Variables de entorno configuradas
-- [ ] Claves RSA generadas y montadas
-- [ ] Dominio configurado (auth.tudominio.com)
-- [ ] SSL activo
-- [ ] Migraciones ejecutadas
+- [ ] Dominio `auth.tudominio.com` configurado
+- [ ] SSL activo (Let's Encrypt)
+- [ ] Volumen `/app/keys` configurado (opcional pero recomendado)
+- [ ] Deploy exitoso
+- [ ] Endpoint `/.well-known/jwks.json` accesible
+- [ ] Migraciones ejecutadas (conectar a DB y ejecutar)
 - [ ] Usuario admin creado
-- [ ] JWKS endpoint accesible públicamente
 
-### Backend Services
+### Backend API
 
-- [ ] Variable AUTH_JWKS_URL configurada
-- [ ] Librería JWKS instalada (jwks-rsa, python-jose, etc)
+- [ ] Dockerfile creado
+- [ ] Variable `AUTH_JWKS_URL` configurada
+- [ ] Dependencia `jwks-rsa` instalada
 - [ ] Middleware de autenticación implementado
-- [ ] Dominio configurado
+- [ ] Dominio `api.tudominio.com` configurado
 - [ ] SSL activo
+- [ ] Deploy exitoso
+- [ ] Prueba con token funciona
 
 ### Frontend
 
-- [ ] Variables REACT_APP_AUTH_URL y REACT_APP_API_URL configuradas
+- [ ] Dockerfile creado
+- [ ] Variables `REACT_APP_*` configuradas
 - [ ] Servicio de auth implementado
 - [ ] Interceptor de tokens implementado
-- [ ] Manejo de errores 401
-- [ ] Dominio configurado
+- [ ] Dominio `app.tudominio.com` configurado
 - [ ] SSL activo
+- [ ] Deploy exitoso
+- [ ] Login funciona end-to-end
 
 ---
 
 ## 🆘 Troubleshooting
 
-### Error: "JWKS endpoint not found"
+### Error: "Failed to generate keys"
 
 ```bash
-# Verificar que el endpoint responde
-curl https://auth.tudominio.com/.well-known/jwks.json
-
-# Si no responde, verificar logs
-dokploy logs auth-service
+# Ver logs en Dokploy
+# Verificar que openssl está instalado en el contenedor
+# El Dockerfile ya incluye: RUN apk add openssl
 ```
 
-### Error: "Invalid token signature"
+### Error: "JWKS endpoint returns 404"
 
 ```bash
-# Verificar que backend usa la URL correcta
+# Verificar que el servicio está corriendo
+curl https://auth.tudominio.com/health
+
+# Verificar logs
+# Buscar: "Server starting on"
+```
+
+### Error: "Invalid token signature" en Backend
+
+```bash
+# Verificar que AUTH_JWKS_URL es correcta
 echo $AUTH_JWKS_URL
 
-# Limpiar cache de JWKS en backend
-# (reiniciar servicio)
+# Debe ser: https://auth.tudominio.com/.well-known/jwks.json
+
+# Reiniciar backend para limpiar cache
 ```
 
-### Error: "CORS policy"
+### Error: "CORS policy" en Frontend
 
 ```bash
 # Agregar dominio del frontend a CORS_ALLOWED_ORIGINS
-CORS_ALLOWED_ORIGINS=https://app.tudominio.com,https://admin.tudominio.com
+CORS_ALLOWED_ORIGINS=https://app.tudominio.com
+
+# Redeploy auth-service
 ```
 
 ---
 
-## 🚀 Resultado Final
+## 🎯 Ventajas de Esta Arquitectura
 
 ```
-Frontend (app.tudominio.com)
-    ↓ Login
-Auth Service (auth.tudominio.com)
-    ↓ Token
-Frontend guarda token
-    ↓ Request con token
-Backend (api.tudominio.com)
-    ↓ Valida token con JWKS
-    ↓ (obtiene clave de auth.tudominio.com/.well-known/jwks.json)
-    ✅ Request autorizado
+✅ Sin archivos compartidos entre contenedores
+✅ Sin volúmenes complejos
+✅ Claves se generan automáticamente
+✅ JWKS distribuye claves vía HTTP
+✅ Backends se auto-configuran
+✅ Agregar servicios = 1 variable de entorno
+✅ Rotación de claves sin downtime
+✅ 100% compatible con Dokploy
+✅ Escalable a N microservicios
 ```
 
-**Todo automático, sin copiar archivos, sin configuración manual!**
+---
+
+## 📚 Próximos Pasos
+
+1. **Deploy Auth Service** → Verificar JWKS
+2. **Deploy Backend** → Probar con token
+3. **Deploy Frontend** → Probar login end-to-end
+4. **Monitoreo** → Configurar alertas en Dokploy
+5. **Backup** → Configurar backup de PostgreSQL
+6. **Rotación** → Planificar rotación de claves (cada 3-6 meses)
+
+---
+
+**¿Dudas?** Todo está automatizado. Solo necesitas configurar variables de entorno en Dokploy y hacer deploy.
