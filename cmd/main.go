@@ -67,6 +67,7 @@ func main() {
 	// Initialize repositories
 	userRepo := postgres.NewUserRepository(db)
 	sessionRepo := postgres.NewSessionRepository(db)
+	roleRepo := postgres.NewRoleRepository(db)
 
 	// Initialize JWT token service
 	tokenService, err := jwt.NewTokenService(
@@ -83,10 +84,12 @@ func main() {
 	// Initialize services
 	authService := service.NewAuthService(userRepo, sessionRepo, tokenService, cfg)
 	userService := service.NewUserService(userRepo)
+	roleService := service.NewRoleService(roleRepo, userRepo)
 
 	// Initialize handlers
 	authHandler := handler.NewAuthHandler(authService, validate)
 	userHandler := handler.NewUserHandler(userService, validate)
+	roleHandler := handler.NewRoleHandler(roleService, validate)
 	healthHandler := handler.NewHealthHandler()
 
 	// Create Fiber app
@@ -103,8 +106,22 @@ func main() {
 	app.Use(middleware.LoggerMiddleware())
 	app.Use(middleware.CORSMiddleware())
 
+	// Setup authorization middlewares
+	authMiddleware := middleware.AuthMiddleware(tokenService)
+	requireAdmin := middleware.RequireAdmin(roleService)
+	requireModerator := middleware.RequireModerator(roleService)
+
 	// Setup routes
-	handler.SetupRoutes(app, authHandler, userHandler, healthHandler, middleware.AuthMiddleware(tokenService))
+	handler.SetupRoutes(
+		app,
+		authHandler,
+		userHandler,
+		roleHandler,
+		healthHandler,
+		authMiddleware,
+		requireAdmin,
+		requireModerator,
+	)
 
 	// Graceful shutdown
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
