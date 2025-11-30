@@ -151,6 +151,7 @@ func main() {
 	authMiddleware := middleware.AuthMiddleware(tokenService, tokenBlacklist)
 	requireAdmin := middleware.RequireAdmin(roleService)
 	requireModerator := middleware.RequireModerator(roleService)
+	requireSuperAdmin := middleware.RequireSuperAdmin()
 
 	// Setup routes
 	handler.SetupRoutes(
@@ -166,6 +167,7 @@ func main() {
 		authMiddleware,
 		requireAdmin,
 		requireModerator,
+		requireSuperAdmin,
 	)
 
 	// Graceful shutdown

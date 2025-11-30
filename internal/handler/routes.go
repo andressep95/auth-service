@@ -17,6 +17,7 @@ func SetupRoutes(
 	authMiddleware fiber.Handler,
 	requireAdmin fiber.Handler,
 	requireModerator fiber.Handler,
+	requireSuperAdmin fiber.Handler,
 ) {
 	// Health checks (public)
 	app.Get("/health", healthHandler.Health)
@@ -74,7 +75,7 @@ func SetupRoutes(
 	moderator.Get("/users/:userId/roles", roleHandler.GetUserRoles)
 
 	// Super admin routes (require super_admin role)
-	superAdmin := api.Group("/super-admin", authMiddleware, requireAdmin)
+	superAdmin := api.Group("/super-admin", authMiddleware, requireSuperAdmin)
 	superAdmin.Post("/apps", appHandler.CreateApp)
 	superAdmin.Get("/apps", appHandler.ListApps)
 	superAdmin.Get("/apps/:id", appHandler.GetApp)

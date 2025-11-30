@@ -89,3 +89,28 @@ func AuthMiddleware(tokenService *jwt.TokenService, tokenBlacklist *blacklist.To
 		return c.Next()
 	}
 }
+
+// RequireSuperAdmin checks if user has super_admin role
+func RequireSuperAdmin() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		roles, ok := c.Locals("roles").([]string)
+		if !ok {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error":          "Forbidden: no roles found",
+				"required_roles": []string{"super_admin"},
+			})
+		}
+
+		// Check if user has super_admin role
+		for _, role := range roles {
+			if role == "super_admin" {
+				return c.Next()
+			}
+		}
+
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error":          "Forbidden: insufficient permissions",
+			"required_roles": []string{"super_admin"},
+		})
+	}
+}
