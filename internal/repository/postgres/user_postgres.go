@@ -366,3 +366,31 @@ func (r *userRepository) List(ctx context.Context, limit, offset int, search str
 
 	return users, total, nil
 }
+
+// SuperAdminExists checks if any super admin user exists in the system
+func (r *userRepository) SuperAdminExists(ctx context.Context) (bool, error) {
+	query := `SELECT EXISTS(SELECT 1 FROM users WHERE is_super_admin = true)`
+
+	var exists bool
+	err := r.db.GetContext(ctx, &exists, query)
+	if err != nil {
+		return false, fmt.Errorf("failed to check super admin existence: %w", err)
+	}
+
+	return exists, nil
+}
+
+// AssignRole assigns a role to a user
+func (r *userRepository) AssignRole(ctx context.Context, userID, roleID uuid.UUID) error {
+	query := `
+		INSERT INTO user_roles (user_id, role_id, assigned_at)
+		VALUES ($1, $2, NOW())
+		ON CONFLICT (user_id, role_id) DO NOTHING`
+
+	_, err := r.db.ExecContext(ctx, query, userID, roleID)
+	if err != nil {
+		return fmt.Errorf("failed to assign role: %w", err)
+	}
+
+	return nil
+}

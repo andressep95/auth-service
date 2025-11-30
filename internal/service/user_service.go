@@ -333,6 +333,55 @@ func (s *UserService) GetUserRolesAllApps(ctx context.Context, userID uuid.UUID)
 	return s.userRepo.GetUserRolesAllApps(ctx, userID)
 }
 
+// SuperAdminExists checks if any super admin user exists
+func (s *UserService) SuperAdminExists(ctx context.Context) (bool, error) {
+	return s.userRepo.SuperAdminExists(ctx)
+}
+
+// CreateSuperAdmin creates a super admin user
+func (s *UserService) CreateSuperAdmin(ctx context.Context, email, password, firstName, lastName string) (*domain.User, error) {
+	// Check if user already exists
+	existingUser, err := s.userRepo.GetByEmail(ctx, email)
+	if err == nil && existingUser != nil {
+		return nil, errors.New("user with this email already exists")
+	}
+
+	// Hash password
+	passwordHash, err := hash.HashPassword(password)
+	if err != nil {
+		return nil, errors.New("failed to hash password")
+	}
+
+	// Create user
+	user := &domain.User{
+		ID:            uuid.New(),
+		Email:         email,
+		PasswordHash:  passwordHash,
+		FirstName:     firstName,
+		LastName:      lastName,
+		Status:        domain.UserStatusActive,
+		EmailVerified: true, // Super admin is auto-verified
+		MFAEnabled:    false,
+		FailedLogins:  0,
+		IsSuperAdmin:  true, // Mark as super admin
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
+	}
+
+	// Save user to database
+	if err := s.userRepo.Create(ctx, user); err != nil {
+		return nil, errors.New("failed to create super admin user")
+	}
+
+	// Assign super_admin role
+	superAdminRoleID := uuid.MustParse("10000000-0000-0000-0000-000000000001")
+	if err := s.userRepo.AssignRole(ctx, user.ID, superAdminRoleID); err != nil {
+		return nil, errors.New("failed to assign super_admin role")
+	}
+
+	return user, nil
+}
+
 // generateSecureToken generates a cryptographically secure random token
 func generateSecureToken(length int) (string, error) {
 	bytes := make([]byte, length)

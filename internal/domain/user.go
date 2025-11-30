@@ -30,6 +30,7 @@ type User struct {
 	EmailVerificationTokenExpiresAt *time.Time `json:"-" db:"email_verification_token_expires_at"`
 	PasswordResetToken              *string    `json:"-" db:"password_reset_token"`
 	PasswordResetTokenExpiresAt     *time.Time `json:"-" db:"password_reset_token_expires_at"`
+	IsSuperAdmin                    bool       `json:"is_super_admin" db:"is_super_admin"`
 	CreatedAt                       time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt                       time.Time  `json:"updated_at" db:"updated_at"`
 	LastLoginAt                     *time.Time `json:"last_login_at" db:"last_login_at"`

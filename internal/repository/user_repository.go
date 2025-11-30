@@ -21,4 +21,6 @@ type UserRepository interface {
 	GetUserRoles(ctx context.Context, userID, appID uuid.UUID) ([]string, error)
 	GetUserRolesAllApps(ctx context.Context, userID uuid.UUID) ([]string, error)
 	List(ctx context.Context, limit, offset int, search string) ([]*domain.User, int, error)
+	SuperAdminExists(ctx context.Context) (bool, error)
+	AssignRole(ctx context.Context, userID, roleID uuid.UUID) error
 }

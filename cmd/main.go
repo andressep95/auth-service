@@ -126,6 +126,7 @@ func main() {
 	passwordHandler := handler.NewPasswordHandler(authService, validate)
 	healthHandler := handler.NewHealthHandler()
 	jwksHandler := handler.NewJWKSHandler(tokenService.GetPublicKey(), "2024-12-01")
+	setupHandler := handler.NewSetupHandler(userService, roleService, validate)
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
@@ -155,6 +156,7 @@ func main() {
 		passwordHandler,
 		healthHandler,
 		jwksHandler,
+		setupHandler,
 		authMiddleware,
 		requireAdmin,
 		requireModerator,

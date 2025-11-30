@@ -12,6 +12,7 @@ func SetupRoutes(
 	passwordHandler *PasswordHandler,
 	healthHandler *HealthHandler,
 	jwksHandler *JWKSHandler,
+	setupHandler *SetupHandler,
 	authMiddleware fiber.Handler,
 	requireAdmin fiber.Handler,
 	requireModerator fiber.Handler,
@@ -22,6 +23,9 @@ func SetupRoutes(
 
 	// JWKS endpoint (public)
 	app.Get("/.well-known/jwks.json", jwksHandler.GetJWKS)
+
+	// Setup endpoint (public, one-time use)
+	app.Post("/api/v1/setup/super-admin", setupHandler.CreateSuperAdmin)
 
 	// API v1
 	api := app.Group("/api/v1")
