@@ -27,11 +27,17 @@ func (r *userRepository) Create(ctx context.Context, user *domain.User) error {
 		INSERT INTO users (
 			id, email, password_hash, first_name, last_name,
 			status, email_verified, mfa_enabled, mfa_secret,
-			failed_logins, locked_until, created_at, updated_at, last_login_at
+			failed_logins, locked_until,
+			email_verification_token, email_verification_token_expires_at,
+			password_reset_token, password_reset_token_expires_at,
+			created_at, updated_at, last_login_at
 		) VALUES (
 			:id, :email, :password_hash, :first_name, :last_name,
 			:status, :email_verified, :mfa_enabled, :mfa_secret,
-			:failed_logins, :locked_until, :created_at, :updated_at, :last_login_at
+			:failed_logins, :locked_until,
+			:email_verification_token, :email_verification_token_expires_at,
+			:password_reset_token, :password_reset_token_expires_at,
+			:created_at, :updated_at, :last_login_at
 		)`
 
 	_, err := r.db.NamedExecContext(ctx, query, user)
@@ -47,7 +53,10 @@ func (r *userRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Use
 	query := `
 		SELECT id, email, password_hash, first_name, last_name,
 			   status, email_verified, mfa_enabled, mfa_secret,
-			   failed_logins, locked_until, created_at, updated_at, last_login_at
+			   failed_logins, locked_until,
+			   email_verification_token, email_verification_token_expires_at,
+			   password_reset_token, password_reset_token_expires_at,
+			   created_at, updated_at, last_login_at
 		FROM users
 		WHERE id = $1`
 
@@ -68,7 +77,10 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*domain.
 	query := `
 		SELECT id, email, password_hash, first_name, last_name,
 			   status, email_verified, mfa_enabled, mfa_secret,
-			   failed_logins, locked_until, created_at, updated_at, last_login_at
+			   failed_logins, locked_until,
+			   email_verification_token, email_verification_token_expires_at,
+			   password_reset_token, password_reset_token_expires_at,
+			   created_at, updated_at, last_login_at
 		FROM users
 		WHERE email = $1`
 
@@ -100,6 +112,10 @@ func (r *userRepository) Update(ctx context.Context, user *domain.User) error {
 			mfa_secret = :mfa_secret,
 			failed_logins = :failed_logins,
 			locked_until = :locked_until,
+			email_verification_token = :email_verification_token,
+			email_verification_token_expires_at = :email_verification_token_expires_at,
+			password_reset_token = :password_reset_token,
+			password_reset_token_expires_at = :password_reset_token_expires_at,
 			updated_at = :updated_at,
 			last_login_at = :last_login_at
 		WHERE id = :id`
@@ -234,4 +250,52 @@ func (r *userRepository) GetUserRoles(ctx context.Context, userID, appID uuid.UU
 	}
 
 	return roles, nil
+}
+
+// GetByVerificationToken retrieves a user by their email verification token
+func (r *userRepository) GetByVerificationToken(ctx context.Context, token string) (*domain.User, error) {
+	query := `
+		SELECT id, email, password_hash, first_name, last_name,
+			   status, email_verified, mfa_enabled, mfa_secret,
+			   failed_logins, locked_until,
+			   email_verification_token, email_verification_token_expires_at,
+			   password_reset_token, password_reset_token_expires_at,
+			   created_at, updated_at, last_login_at
+		FROM users
+		WHERE email_verification_token = $1`
+
+	var user domain.User
+	err := r.db.GetContext(ctx, &user, query, token)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("user not found: %w", err)
+		}
+		return nil, fmt.Errorf("failed to get user by verification token: %w", err)
+	}
+
+	return &user, nil
+}
+
+// GetByPasswordResetToken retrieves a user by their password reset token
+func (r *userRepository) GetByPasswordResetToken(ctx context.Context, token string) (*domain.User, error) {
+	query := `
+		SELECT id, email, password_hash, first_name, last_name,
+			   status, email_verified, mfa_enabled, mfa_secret,
+			   failed_logins, locked_until,
+			   email_verification_token, email_verification_token_expires_at,
+			   password_reset_token, password_reset_token_expires_at,
+			   created_at, updated_at, last_login_at
+		FROM users
+		WHERE password_reset_token = $1`
+
+	var user domain.User
+	err := r.db.GetContext(ctx, &user, query, token)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("user not found: %w", err)
+		}
+		return nil, fmt.Errorf("failed to get user by password reset token: %w", err)
+	}
+
+	return &user, nil
 }

@@ -17,6 +17,7 @@ type Config struct {
 	JWT      JWTConfig
 	Auth     AuthConfig
 	CORS     CORSConfig
+	Email    EmailConfig
 }
 
 type ServerConfig struct {
@@ -60,6 +61,17 @@ type CORSConfig struct {
 	AllowedOrigins string
 }
 
+type EmailConfig struct {
+	Provider        string
+	APIKey          string
+	FromEmail       string
+	FromName        string
+	BaseURL         string
+	VerificationURL string
+	ResetURL        string
+	Enabled         bool
+}
+
 func Load() (*Config, error) {
 	// Intentar cargar .env (opcional en producción)
 	_ = godotenv.Load()
@@ -99,6 +111,16 @@ func Load() (*Config, error) {
 		},
 		CORS: CORSConfig{
 			AllowedOrigins: getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8080"),
+		},
+		Email: EmailConfig{
+			Provider:        getEnv("EMAIL_PROVIDER", "resend"),
+			APIKey:          getEnv("EMAIL_API_KEY", ""),
+			FromEmail:       getEnv("EMAIL_FROM_EMAIL", "noreply@localhost"),
+			FromName:        getEnv("EMAIL_FROM_NAME", "Auth Service"),
+			BaseURL:         getEnv("EMAIL_BASE_URL", "http://localhost:3000"),
+			VerificationURL: getEnv("EMAIL_VERIFICATION_URL", "http://localhost:3000/verify-email"),
+			ResetURL:        getEnv("EMAIL_RESET_URL", "http://localhost:3000/reset-password"),
+			Enabled:         getBoolEnv("EMAIL_ENABLED", false),
 		},
 	}
 
@@ -153,7 +175,7 @@ func getDurationEnv(key string, defaultValue time.Duration) time.Duration {
 	if value == "" {
 		return defaultValue
 	}
-	
+
 	duration, err := time.ParseDuration(value)
 	if err != nil {
 		// Use structured logging to prevent log injection
@@ -161,4 +183,19 @@ func getDurationEnv(key string, defaultValue time.Duration) time.Duration {
 		return defaultValue
 	}
 	return duration
+}
+
+func getBoolEnv(key string, defaultValue bool) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+
+	boolVal, err := strconv.ParseBool(value)
+	if err != nil {
+		// Use structured logging to prevent log injection
+		log.Printf("[CONFIG] Invalid boolean for key=%s, using default=%v", key, defaultValue)
+		return defaultValue
+	}
+	return boolVal
 }

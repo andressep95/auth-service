@@ -72,6 +72,8 @@ migrate:
 	@docker-compose exec -T postgres psql -U auth -d authdb < migrations/001_initial.sql
 	@echo "  → Migración 002: RBAC y roles por defecto..."
 	@docker-compose exec -T postgres psql -U auth -d authdb < migrations/002_seed_default_roles.sql
+	@echo "  → Migración 003: Email verification..."
+	@docker-compose exec -T postgres psql -U auth -d authdb < migrations/003_add_email_verification.sql
 	@echo "✓ Migraciones completas"
 
 ## migrate-rbac: Ejecutar solo la migración de RBAC
@@ -93,6 +95,7 @@ db-reset:
 		echo "📊 Ejecutando migraciones..."; \
 		docker-compose exec -T postgres psql -U auth -d authdb < migrations/001_initial.sql; \
 		docker-compose exec -T postgres psql -U auth -d authdb < migrations/002_seed_default_roles.sql; \
+		docker-compose exec -T postgres psql -U auth -d authdb < migrations/003_add_email_verification.sql; \
 		echo "✓ Base de datos reseteada completamente"; \
 	else \
 		echo "❌ Operación cancelada"; \

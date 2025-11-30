@@ -13,8 +13,8 @@ RED='\033[0;31m'
 NC='\033[0m'
 
 # Configuración por defecto
-DEFAULT_EMAIL="admin@test.com"
-DEFAULT_PASSWORD="Admin123!"
+DEFAULT_EMAIL="bodyweightforce@gmail.com"
+DEFAULT_PASSWORD="admin123."
 DEFAULT_FIRST_NAME="Admin"
 DEFAULT_LAST_NAME="User"
 API_URL="http://localhost:8080"
@@ -115,17 +115,22 @@ wait_for_postgres() {
 # Función para ejecutar migraciones
 run_migrations() {
     echo -e "${BLUE}📊 Ejecutando migraciones...${NC}"
-    
+
     if ! docker-compose exec -T postgres psql -U auth -d authdb < migrations/001_initial.sql; then
         echo -e "${RED}❌ Error en migración inicial${NC}"
         exit 1
     fi
-    
+
     if ! docker-compose exec -T postgres psql -U auth -d authdb < migrations/002_seed_default_roles.sql; then
         echo -e "${RED}❌ Error en migración de roles${NC}"
         exit 1
     fi
-    
+
+    if ! docker-compose exec -T postgres psql -U auth -d authdb < migrations/003_add_email_verification.sql; then
+        echo -e "${RED}❌ Error en migración de email verification${NC}"
+        exit 1
+    fi
+
     echo -e "${GREEN}✓ Migraciones ejecutadas exitosamente${NC}"
 }
 

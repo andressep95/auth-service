@@ -1,6 +1,55 @@
 # Microservicio de Autenticación en Go
 
-Excelente proyecto. Construir tu propio Identity Provider te da control total y es un ejercicio arquitectónico valioso. Te presento un diseño sólido y pragmático.
+![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)
+![Go](https://img.shields.io/badge/Go-1.24-00ADD8.svg)
+![License](https://img.shields.io/badge/license-MIT-green.svg)
+![Status](https://img.shields.io/badge/status-production--ready-success.svg)
+
+> 🔒 **v1.1.0** - Incluye corrección crítica del sistema de token blacklist para reset de contraseña
+
+Microservicio de autenticación y autorización construido en Go con arquitectura limpia, diseñado para ser el Identity Provider de un ecosistema de microservicios.
+
+## 🚀 Quick Start
+
+```bash
+# Setup completo con un comando
+make quickstart
+
+# O con credenciales personalizadas
+make quickstart-custom
+```
+
+## ✨ Características Principales
+
+- ✅ **Autenticación JWT** con RS256 (asimétrico)
+- ✅ **Sistema RBAC** completo con roles y permisos granulares
+- ✅ **Reset de Contraseña** seguro con email
+- ✅ **Token Blacklist** con invalidación por timestamp
+- ✅ **Account Locking** después de intentos fallidos
+- ✅ **Email Verification** al registrarse
+- ✅ **Session Management** con refresh token rotation
+- ✅ **Password Hashing** con Argon2id
+- ✅ **Multi-tenancy** mediante App ID
+
+## 📚 Documentación
+
+### Documentos Principales
+- **[CLAUDE.md](./CLAUDE.md)** - 🎯 Documentación central completa (todo en uno)
+- **[README.md](./README.md)** - Este archivo (overview y quick start)
+- **[CHANGELOG.md](./CHANGELOG.md)** - Historial de versiones
+
+### Documentación Técnica (`docs/`)
+- **[docs/architecture.md](./docs/architecture.md)** - Arquitectura y diagramas del sistema
+- **[docs/sequence-diagrams.md](./docs/sequence-diagrams.md)** - Diagramas de secuencia (Mermaid)
+- **[docs/roadmap.md](./docs/roadmap.md)** - Features pendientes y roadmap
+- **[docs/openapi.yaml](./docs/openapi.yaml)** - Especificación OpenAPI 3.0
+
+## 🧪 Testing
+
+```bash
+# Test automatizado del flujo de reset de contraseña
+./test-reset-flow.sh
+```
 
 ---
 

@@ -11,6 +11,7 @@ import (
 	"github.com/andressep95/auth-service/internal/config"
 	"github.com/andressep95/auth-service/internal/domain"
 	"github.com/andressep95/auth-service/internal/repository"
+	"github.com/andressep95/auth-service/pkg/blacklist"
 	"github.com/andressep95/auth-service/pkg/hash"
 	"github.com/andressep95/auth-service/pkg/jwt"
 )
@@ -23,10 +24,11 @@ var (
 )
 
 type AuthService struct {
-	userRepo     repository.UserRepository
-	sessionRepo  repository.SessionRepository
-	tokenService *jwt.TokenService
-	cfg          *config.Config
+	userRepo       repository.UserRepository
+	sessionRepo    repository.SessionRepository
+	tokenService   *jwt.TokenService
+	tokenBlacklist *blacklist.TokenBlacklist
+	cfg            *config.Config
 }
 
 type LoginRequest struct {
@@ -51,13 +53,15 @@ func NewAuthService(
 	userRepo repository.UserRepository,
 	sessionRepo repository.SessionRepository,
 	tokenService *jwt.TokenService,
+	tokenBlacklist *blacklist.TokenBlacklist,
 	cfg *config.Config,
 ) *AuthService {
 	return &AuthService{
-		userRepo:     userRepo,
-		sessionRepo:  sessionRepo,
-		tokenService: tokenService,
-		cfg:          cfg,
+		userRepo:       userRepo,
+		sessionRepo:    sessionRepo,
+		tokenService:   tokenService,
+		tokenBlacklist: tokenBlacklist,
+		cfg:            cfg,
 	}
 }
 
@@ -232,11 +236,25 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*d
 	return newTokenPair, nil
 }
 
-func (s *AuthService) Logout(ctx context.Context, refreshToken string) error {
-	// Hash the refresh token
+func (s *AuthService) Logout(ctx context.Context, refreshToken string, accessToken string) error {
+	// 1. Blacklist the access token immediately
+	if accessToken != "" {
+		// Validate and extract claims to get expiration
+		claims, err := s.tokenService.ValidateToken(accessToken)
+		if err == nil && claims.ExpiresAt != nil {
+			// Calculate TTL until token expires
+			expiresAt := claims.ExpiresAt.Time
+			if err := s.tokenBlacklist.AddAccessToken(ctx, accessToken, expiresAt); err != nil {
+				// Log error but don't fail logout
+				// The session will still be deleted
+			}
+		}
+	}
+
+	// 2. Hash the refresh token
 	hashedRefreshToken := hashToken(refreshToken)
 
-	// Delete session by token
+	// 3. Delete session by token
 	if err := s.sessionRepo.DeleteByToken(ctx, hashedRefreshToken); err != nil {
 		return errors.New("failed to logout")
 	}
@@ -269,6 +287,47 @@ func (s *AuthService) handleFailedLogin(ctx context.Context, user *domain.User) 
 	}
 
 	return nil
+}
+
+// ChangePassword changes user password and invalidates all sessions
+func (s *AuthService) ChangePassword(ctx context.Context, userID uuid.UUID, oldPassword, newPassword string) error {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return ErrUserNotFound
+	}
+
+	valid, err := hash.VerifyPassword(oldPassword, user.PasswordHash)
+	if err != nil || !valid {
+		return ErrInvalidCredentials
+	}
+
+	newHash, err := hash.HashPassword(newPassword)
+	if err != nil {
+		return err
+	}
+
+	user.PasswordHash = newHash
+	if err := s.userRepo.Update(ctx, user); err != nil {
+		return err
+	}
+
+	// Invalidate all sessions and blacklist tokens
+	return s.InvalidateAllUserSessions(ctx, userID)
+}
+
+// InvalidateAllUserSessions closes all sessions and blacklists tokens
+func (s *AuthService) InvalidateAllUserSessions(ctx context.Context, userID uuid.UUID) error {
+	sessions, err := s.sessionRepo.GetByUserID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	for _, session := range sessions {
+		_ = s.sessionRepo.Delete(ctx, session.ID)
+	}
+
+	// Blacklist all tokens issued before NOW for 24h (longer than max token lifetime)
+	return s.tokenBlacklist.BlacklistUser(ctx, userID.String(), 24*time.Hour)
 }
 
 // hashToken creates a SHA-256 hash of the token

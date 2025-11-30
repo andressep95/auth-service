@@ -19,6 +19,8 @@ import (
 	"github.com/andressep95/auth-service/internal/handler/middleware"
 	"github.com/andressep95/auth-service/internal/repository/postgres"
 	"github.com/andressep95/auth-service/internal/service"
+	"github.com/andressep95/auth-service/pkg/blacklist"
+	"github.com/andressep95/auth-service/pkg/email"
 	"github.com/andressep95/auth-service/pkg/jwt"
 	"github.com/andressep95/auth-service/pkg/validator"
 )
@@ -81,15 +83,47 @@ func main() {
 		log.Fatalf("Failed to initialize token service: %v", err)
 	}
 
+	// Initialize token blacklist service
+	tokenBlacklist := blacklist.NewTokenBlacklist(redisClient)
+	log.Println("✓ Token blacklist service initialized")
+
+	// Initialize email service
+	var emailService email.EmailService
+	if cfg.Email.Enabled {
+		emailConfig := &email.EmailConfig{
+			Provider:        cfg.Email.Provider,
+			APIKey:          cfg.Email.APIKey,
+			FromEmail:       cfg.Email.FromEmail,
+			FromName:        cfg.Email.FromName,
+			BaseURL:         cfg.Email.BaseURL,
+			VerificationURL: cfg.Email.VerificationURL,
+			ResetURL:        cfg.Email.ResetURL,
+		}
+
+		emailService, err = email.NewResendEmailService(emailConfig)
+		if err != nil {
+			log.Printf("Warning: Failed to initialize email service: %v", err)
+			log.Println("Email functionality will be disabled")
+		} else {
+			log.Println("✓ Email service initialized (Resend)")
+		}
+	} else {
+		log.Println("ℹ Email service disabled (set EMAIL_ENABLED=true to enable)")
+	}
+
 	// Initialize services
-	authService := service.NewAuthService(userRepo, sessionRepo, tokenService, cfg)
-	userService := service.NewUserService(userRepo)
+	authService := service.NewAuthService(userRepo, sessionRepo, tokenService, tokenBlacklist, cfg)
+	userService := service.NewUserService(userRepo, sessionRepo, emailService, cfg)
 	roleService := service.NewRoleService(roleRepo, userRepo)
+
+	// Set circular dependency: UserService needs AuthService for token blacklisting
+	userService.SetAuthService(authService)
 
 	// Initialize handlers
 	authHandler := handler.NewAuthHandler(authService, validate)
 	userHandler := handler.NewUserHandler(userService, validate)
 	roleHandler := handler.NewRoleHandler(roleService, validate)
+	passwordHandler := handler.NewPasswordHandler(authService, validate)
 	healthHandler := handler.NewHealthHandler()
 
 	// Create Fiber app
@@ -107,7 +141,7 @@ func main() {
 	app.Use(middleware.CORSMiddleware(cfg))
 
 	// Setup authorization middlewares
-	authMiddleware := middleware.AuthMiddleware(tokenService)
+	authMiddleware := middleware.AuthMiddleware(tokenService, tokenBlacklist)
 	requireAdmin := middleware.RequireAdmin(roleService)
 	requireModerator := middleware.RequireModerator(roleService)
 
@@ -117,6 +151,7 @@ func main() {
 		authHandler,
 		userHandler,
 		roleHandler,
+		passwordHandler,
 		healthHandler,
 		authMiddleware,
 		requireAdmin,

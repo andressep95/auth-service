@@ -19,6 +19,11 @@
 
 **Auth Service** es un microservicio de autenticación y autorización construido en Go con arquitectura limpia, diseñado para ser el Identity Provider de un ecosistema de microservicios.
 
+> 🔒 **Versión 1.1.0** - Incluye corrección crítica del sistema de token blacklist.
+> El reset de contraseña ahora funciona correctamente, permitiendo nuevos logins
+> inmediatamente después del reset mientras mantiene la seguridad completa.
+> Ver sección "Correcciones Críticas Aplicadas" al final del documento.
+
 ### Tecnologías Core
 
 - **Lenguaje**: Go 1.24
@@ -31,8 +36,12 @@
 
 ### Estado del Proyecto
 
-✅ **Producción Ready** para funcionalidades core
-⚠️ **Requiere** email service para funcionalidades completas
+✅ **Producción Ready** - Todas las funcionalidades core implementadas y probadas
+✅ **Email Service** - Integrado con Resend
+✅ **Password Reset** - Flujo completo implementado y verificado
+✅ **Token Blacklist** - Sistema corregido y funcionando correctamente
+
+**Última actualización:** v1.1.0 (2024-11-30)
 
 ---
 
@@ -206,9 +215,9 @@ make admin-login
 ### ⏳ Pendientes
 
 #### Alta Prioridad
-- ⏳ Email verification
-- ⏳ Password reset flow
-- ⏳ Email service integration (SendGrid/AWS SES)
+- ✅ Email verification (implementado)
+- ✅ Password reset flow (implementado)
+- ✅ Email service integration (Resend implementado)
 
 #### Media Prioridad
 - ⏳ MFA/2FA (TOTP)
@@ -314,6 +323,80 @@ Cierra sesión e invalida refresh token.
 ```
 
 **Response:** `200 OK`
+
+#### POST /api/v1/auth/forgot-password
+Solicita un reset de contraseña por email.
+
+**Request:**
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "message": "If the email exists, a password reset link has been sent"
+}
+```
+
+**Nota:** Por seguridad, siempre retorna 200 OK aunque el email no exista.
+
+#### POST /api/v1/auth/reset-password
+Resetea la contraseña usando el token enviado por email.
+
+**Request:**
+```json
+{
+  "token": "<reset_token_from_email>",
+  "new_password": "NewSecurePass123!"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "message": "Password reset successfully"
+}
+```
+
+**Seguridad del Reset:**
+- ✅ Token expira en 1 hora
+- ✅ Token de un solo uso (se elimina después de usar)
+- ✅ Todas las sesiones activas se cierran
+- ✅ Todos los access tokens se invalidan (blacklist)
+- ✅ El usuario debe hacer login con la nueva contraseña
+- ✅ Email de confirmación enviado
+
+#### PUT /api/v1/users/me/password
+Cambia la contraseña del usuario autenticado.
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Request:**
+```json
+{
+  "old_password": "OldPass123!",
+  "new_password": "NewPass123!"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "message": "password changed successfully, all sessions have been invalidated"
+}
+```
+
+**Seguridad del Cambio:**
+- ✅ Requiere contraseña actual (autenticación adicional)
+- ✅ Todas las sesiones activas se cierran
+- ✅ Todos los access tokens se invalidan (blacklist)
+- ✅ El usuario debe hacer login nuevamente
 
 ### Usuario (Autenticado)
 
@@ -477,6 +560,62 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000,https://app.example.com
 - Expiración automática
 - Limpieza de sesiones expiradas
 - IP y User-Agent tracking (opcional)
+- **Token Blacklist en Redis**
+- **Invalidación de sesiones al cambiar contraseña**
+
+### Token Blacklist (Redis)
+
+**Implementación Corregida (v1.1):**
+
+El sistema usa un enfoque de "invalidación por timestamp" que permite:
+- ✅ Invalidar todos los tokens emitidos ANTES de un momento específico
+- ✅ Permitir nuevos tokens emitidos DESPUÉS del cambio de contraseña
+- ✅ Evitar bloqueos permanentes del usuario
+
+**Estructura en Redis:**
+```
+blacklist:token:<token_hash>  → "1" (TTL: hasta expiración del token)
+blacklist:user:<user_id>      → timestamp_invalidacion (TTL: 24h)
+```
+
+**Lógica de Blacklist de Usuario:**
+```go
+// Al cambiar/resetear contraseña
+1. Guardar timestamp ACTUAL en Redis: blacklist:user:<user_id> = NOW()
+2. TTL de 24h (más largo que el lifetime máximo de tokens)
+3. Eliminar todas las sesiones activas
+
+// Al validar token
+1. Extraer IssuedAt del token
+2. Obtener timestamp de invalidación de Redis
+3. Si token.IssuedAt < invalidation_timestamp → RECHAZAR
+4. Si token.IssuedAt >= invalidation_timestamp → ACEPTAR
+```
+
+**Ejemplo de Flujo:**
+```
+10:00 - Usuario hace login → Token emitido (IssuedAt: 10:00)
+10:30 - Usuario resetea contraseña → Blacklist timestamp: 10:30
+10:31 - Token viejo (10:00) → RECHAZADO (10:00 < 10:30)
+10:32 - Usuario hace login → Nuevo token (IssuedAt: 10:32)
+10:33 - Token nuevo (10:32) → ACEPTADO (10:32 >= 10:30)
+```
+
+**Flujo de Validación Completo:**
+```
+1. Request con access token
+2. Middleware extrae y valida JWT
+3. Verifica si token específico está en blacklist individual
+4. Verifica si user_id está en blacklist por timestamp
+5. Si cualquier check falla → 401 Unauthorized
+6. Si pasa todos los checks → Continúa con el request
+```
+
+**Corrección Crítica Aplicada:**
+
+En la versión inicial, había un bug donde se guardaba un timestamp FUTURO (NOW + 24h),
+lo que invalidaba TODOS los tokens incluyendo los nuevos. Esto fue corregido para
+guardar el timestamp ACTUAL, permitiendo que solo los tokens antiguos sean invalidados.
 
 ---
 
@@ -600,6 +739,36 @@ air
 ---
 
 ## Testing
+
+### Test Automatizado de Reset de Contraseña
+
+El proyecto incluye un script completo para probar el flujo de reset:
+
+```bash
+./test-reset-flow.sh
+```
+
+**Este script prueba:**
+1. ✅ Registro de usuario
+2. ✅ Login inicial con contraseña original
+3. ✅ Token original funciona
+4. ✅ Solicitud de reset de contraseña
+5. ✅ Reset de contraseña ejecutado
+6. ✅ Token original INVALIDADO (debe fallar)
+7. ✅ Login con nueva contraseña funciona
+8. ✅ Nuevo token FUNCIONA correctamente
+9. ✅ Contraseña vieja rechazada
+
+**Resultado esperado:**
+```
+✅ ¡TODOS LOS TESTS PASARON!
+
+📊 Resumen:
+  • Token original invalidado: ✅
+  • Nuevo token funciona: ✅
+  • Contraseña vieja rechazada: ✅
+  • Seguridad del reset: ✅
+```
 
 ### Testing Manual
 
@@ -751,25 +920,28 @@ UPDATE users SET failed_logins=0, locked_until=NULL WHERE email='user@example.co
 
 ## Recursos Adicionales
 
-### Documentación
+### Documentación Principal
 
-- `README.md` - Overview general
-- `ARCHITECTURE.md` - Arquitectura detallada y diagramas
-- `RBAC_GUIDE.md` - Guía completa de RBAC
-- `TESTING_RBAC.md` - Testing paso a paso
-- `FEATURE_SUMMARY.md` - Resumen de features
-- `ROADMAP.md` - Plan de desarrollo
+- `README.md` - Overview general y quick start
+- `CLAUDE.md` - 🎯 Este documento (documentación central completa)
+- `CHANGELOG.md` - Historial de versiones y cambios
 
-### Scripts
+### Documentación Técnica (`docs/`)
 
-- `scripts/full-setup.sh` - Setup automatizado completo
-- `scripts/generate-keys.sh` - Generar claves RSA
-- `scripts/create-first-admin.sh` - Crear primer admin
+- `docs/architecture.md` - Arquitectura detallada y diagramas del sistema
+- `docs/sequence-diagrams.md` - Diagramas de secuencia de flujos principales (Mermaid)
+- `docs/roadmap.md` - Plan de desarrollo y features pendientes
+- `docs/openapi.yaml` - Especificación completa de la API (OpenAPI 3.0)
 
-### Migraciones
+### Scripts de Automatización
 
-- `migrations/001_initial.sql` - Schema inicial
-- `migrations/002_seed_default_roles.sql` - Roles y permisos
+- `scripts/full-setup.sh` - Setup automatizado completo del sistema (incluye generación de claves y creación de admin)
+
+### Migraciones SQL
+
+- `migrations/001_initial.sql` - Schema inicial (tablas, índices, constraints)
+- `migrations/002_seed_default_roles.sql` - Roles, permisos y trigger de auto-asignación
+- `migrations/003_add_email_verification.sql` - Campos para verificación de email
 
 ---
 
@@ -1086,5 +1258,129 @@ db.SetConnMaxLifetime(5 * time.Minute)
 
 ---
 
-**Última actualización:** 2024
-**Versión:** 1.0.0
+## 🔧 Correcciones Críticas Aplicadas
+
+### v1.1.0 - Corrección de Token Blacklist (2024-11-30)
+
+#### 🐞 Problema Identificado
+
+**Síntoma:** Después de resetear la contraseña, el usuario no podía hacer login nuevamente.
+Todos los tokens nuevos eran rechazados con error 401.
+
+**Causa Raíz:** El sistema guardaba un timestamp FUTURO (NOW + 24h) en la blacklist,
+lo que invalidaba TODOS los tokens, incluyendo los emitidos después del reset.
+
+**Código Problemático:**
+```go
+// ANTES (INCORRECTO)
+func (b *TokenBlacklist) BlacklistUser(ctx context.Context, userID string, until time.Time) error {
+    // Guardaba: NOW + 24h
+    return b.redis.Set(ctx, key, until.Unix(), ttl).Err()
+}
+
+// Validación
+if tokenIssuedAt.Before(invalidationTime) {
+    return true // Token inválido
+}
+// Problema: Si invalidationTime = NOW + 24h, TODOS los tokens son inválidos
+```
+
+#### ✅ Solución Aplicada
+
+**Cambio en `pkg/blacklist/blacklist.go`:**
+```go
+// DESPUÉS (CORRECTO)
+func (b *TokenBlacklist) BlacklistUser(ctx context.Context, userID string, ttl time.Duration) error {
+    // Guarda timestamp ACTUAL como punto de invalidación
+    invalidationTimestamp := time.Now().Unix()
+    return b.redis.Set(ctx, key, invalidationTimestamp, ttl).Err()
+}
+
+// Validación
+if tokenIssuedAt.Before(invalidationTime) {
+    return true // Token inválido solo si fue emitido ANTES del reset
+}
+```
+
+**Cambio en `internal/service/auth_service.go`:**
+```go
+// ANTES
+invalidationTime := time.Now().Add(24 * time.Hour)
+return s.tokenBlacklist.BlacklistUser(ctx, userID.String(), invalidationTime)
+
+// DESPUÉS
+return s.tokenBlacklist.BlacklistUser(ctx, userID.String(), 24*time.Hour)
+```
+
+#### 📊 Impacto de la Corrección
+
+**Antes:**
+```
+10:00 - Login → Token A
+10:30 - Reset password → Blacklist hasta: 10:30 + 24h = 34:30
+10:31 - Token A → RECHAZADO ❌ (10:00 < 34:30)
+10:32 - Nuevo login → Token B
+10:33 - Token B → RECHAZADO ❌ (10:32 < 34:30) ← BUG!
+```
+
+**Después:**
+```
+10:00 - Login → Token A
+10:30 - Reset password → Blacklist timestamp: 10:30
+10:31 - Token A → RECHAZADO ❌ (10:00 < 10:30)
+10:32 - Nuevo login → Token B
+10:33 - Token B → ACEPTADO ✅ (10:32 >= 10:30) ← CORRECTO!
+```
+
+#### ✅ Verificación
+
+La corrección fue verificada con el script `test-reset-flow.sh`:
+
+```bash
+./test-reset-flow.sh
+
+✅ ¡TODOS LOS TESTS PASARON!
+
+📊 Resumen:
+  • Token original invalidado: ✅
+  • Nuevo token funciona: ✅
+  • Contraseña vieja rechazada: ✅
+  • Seguridad del reset: ✅
+```
+
+#### 🛡️ Seguridad Mejorada
+
+La corrección mantiene todas las garantías de seguridad:
+
+- ✅ Tokens antiguos se invalidan correctamente
+- ✅ Sesiones antiguas se cierran
+- ✅ Usuario puede hacer login inmediatamente después del reset
+- ✅ No hay ventana de vulnerabilidad
+- ✅ TTL de 24h asegura limpieza automática
+
+#### 📝 Archivos Modificados
+
+1. `pkg/blacklist/blacklist.go`
+   - Cambio de firma: `until time.Time` → `ttl time.Duration`
+   - Guardar timestamp actual en lugar de futuro
+   - Documentación actualizada
+
+2. `internal/service/auth_service.go`
+   - Pasar TTL en lugar de timestamp futuro
+   - Comentarios actualizados
+
+3. `internal/service/user_service.go`
+   - Usar `InvalidateAllUserSessions` del AuthService
+   - Asegurar blacklist en reset de contraseña
+
+4. `cmd/main.go`
+   - Establecer dependencia circular UserService → AuthService
+
+5. `test-reset-flow.sh` (nuevo)
+   - Script de prueba automatizado
+   - Valida flujo completo de reset
+
+---
+
+**Última actualización:** 2024-11-30
+**Versión:** 1.1.0

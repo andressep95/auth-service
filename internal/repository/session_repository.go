@@ -15,5 +15,6 @@ type SessionRepository interface {
 	Update(ctx context.Context, session *domain.Session) error
 	Delete(ctx context.Context, id uuid.UUID) error
 	DeleteByToken(ctx context.Context, tokenHash string) error
+	DeleteByUserID(ctx context.Context, userID uuid.UUID) error
 	DeleteExpired(ctx context.Context) error
 }

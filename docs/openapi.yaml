@@ -8,13 +8,60 @@ info:
     - Sistema RBAC (Role-Based Access Control)
     - Control de acceso granular con permisos
     - Multi-tenancy mediante App ID
-  version: 1.0.0
+    - Token blacklist con invalidación por timestamp
+    - Reset de contraseña seguro con email
+    
+    ## Sistema de Token Blacklist
+    
+    El servicio implementa un sistema de blacklist de dos niveles:
+    
+    ### 1. Blacklist Individual de Tokens
+    Tokens específicos pueden ser agregados a la blacklist (ej: al hacer logout).
+    
+    ### 2. Blacklist de Usuario por Timestamp
+    Al cambiar/resetear contraseña, se guarda un timestamp de invalidación.
+    Todos los tokens emitidos ANTES de ese timestamp son rechazados.
+    Tokens emitidos DESPUÉS del timestamp son aceptados.
+    
+    **Ejemplo:**
+    ```
+    10:00 - Login → Token A (IssuedAt: 10:00)
+    10:30 - Reset password → Invalidation timestamp: 10:30
+    10:31 - Token A rechazado (10:00 < 10:30)
+    10:32 - Nuevo login → Token B (IssuedAt: 10:32)
+    10:33 - Token B aceptado (10:32 >= 10:30)
+    ```
+    
+    Esto permite:
+    - ✅ Invalidar todos los tokens antiguos
+    - ✅ Permitir nuevos logins inmediatamente
+    - ✅ Evitar bloqueos permanentes del usuario
+  version: 1.1.0
   contact:
     name: API Support
     email: support@authservice.com
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
+  x-changelog:
+    - version: 1.1.0
+      date: 2024-11-30
+      changes:
+        - "✅ Agregados endpoints de forgot-password y reset-password"
+        - "✅ Agregados endpoints de verificación de email"
+        - "✅ Agregado endpoint de cambio de contraseña"
+        - "🔧 Corregido bug crítico en token blacklist"
+        - "🔒 Mejorada seguridad del reset de contraseña"
+        - "📝 Documentación completa del sistema de blacklist"
+    - version: 1.0.0
+      date: 2024-11-15
+      changes:
+        - "🎉 Release inicial"
+        - "✅ Sistema de autenticación con JWT"
+        - "✅ Sistema RBAC completo"
+        - "✅ Gestión de sesiones"
+        - "✅ Account locking"
+        - "✅ Multi-tenancy con App ID"
 
 servers:
   - url: http://localhost:8080
@@ -228,6 +275,109 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
+  /api/v1/auth/forgot-password:
+    post:
+      tags:
+        - Authentication
+      summary: Solicitar reset de contraseña
+      description: |
+        Envía un email con un link para resetear la contraseña.
+        El token de reset expira en 1 hora.
+        
+        **Seguridad:** Siempre retorna 200 OK aunque el email no exista,
+        para no revelar qué emails están registrados.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+      responses:
+        '200':
+          description: Email enviado (si el usuario existe)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: If the email exists, a password reset link has been sent
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/v1/auth/reset-password:
+    post:
+      tags:
+        - Authentication
+      summary: Resetear contraseña con token
+      description: |
+        Resetea la contraseña usando el token recibido por email.
+        
+        **Efectos de seguridad:**
+        - El token se invalida después de usarse (un solo uso)
+        - Todas las sesiones activas se cierran
+        - Todos los access tokens se invalidan (blacklist por timestamp)
+        - Solo tokens emitidos DESPUÉS del reset serán válidos
+        - Se envía email de confirmación
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+                - new_password
+              properties:
+                token:
+                  type: string
+                  description: Token recibido en el email de reset
+                  example: a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6
+                new_password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  description: Nueva contraseña (debe cumplir requisitos de seguridad)
+                  example: NewSecurePass123!
+      responses:
+        '200':
+          description: Contraseña reseteada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Password reset successfully
+        '400':
+          description: Token inválido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalid_token:
+                  value:
+                    error: true
+                    message: Invalid or expired reset token
+                    code: INVALID_RESET_TOKEN
+                expired_token:
+                  value:
+                    error: true
+                    message: Reset token has expired
+                    code: EXPIRED_RESET_TOKEN
+
   # ===== USERS =====
   /api/v1/users/me:
     get:
@@ -244,6 +394,138 @@ paths:
                 $ref: '#/components/schemas/User'
         '401':
           $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/auth/verify-email/{token}:
+    get:
+      tags:
+        - Authentication
+      summary: Verificar email
+      description: |
+        Verifica el email del usuario usando el token enviado al registrarse.
+        El token expira en 24 horas.
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Token de verificación recibido por email
+          example: a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6
+      responses:
+        '200':
+          description: Email verificado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Email verified successfully
+        '400':
+          description: Token inválido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/auth/resend-verification:
+    post:
+      tags:
+        - Authentication
+      summary: Reenviar email de verificación
+      description: |
+        Genera un nuevo token de verificación y lo envía por email.
+        Solo funciona si el email aún no ha sido verificado.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+      responses:
+        '200':
+          description: Email de verificación reenviado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Verification email sent
+        '400':
+          description: Email ya verificado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/users/me/password:
+    put:
+      tags:
+        - Users
+      summary: Cambiar contraseña
+      description: |
+        Cambia la contraseña del usuario autenticado.
+        Requiere la contraseña actual para validación adicional.
+        
+        **Efectos de seguridad:**
+        - Todas las sesiones activas se cierran
+        - Todos los access tokens se invalidan (blacklist por timestamp)
+        - Solo tokens emitidos DESPUÉS del cambio serán válidos
+        - El usuario debe hacer login nuevamente
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - old_password
+                - new_password
+              properties:
+                old_password:
+                  type: string
+                  format: password
+                  example: OldPass123!
+                new_password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  example: NewPass123!
+      responses:
+        '200':
+          description: Contraseña cambiada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: password changed successfully, all sessions have been invalidated
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Contraseña actual incorrecta
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: true
+                message: Invalid old password
+                code: INVALID_CREDENTIALS
 
   /api/v1/users/me/roles:
     get:

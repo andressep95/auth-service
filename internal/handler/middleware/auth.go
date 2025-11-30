@@ -4,11 +4,12 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/andressep95/auth-service/pkg/blacklist"
 	"github.com/andressep95/auth-service/pkg/jwt"
 )
 
 // AuthMiddleware validates JWT tokens and extracts user claims
-func AuthMiddleware(tokenService *jwt.TokenService) fiber.Handler {
+func AuthMiddleware(tokenService *jwt.TokenService, tokenBlacklist *blacklist.TokenBlacklist) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		// Extract Authorization header
 		authHeader := c.Get("Authorization")
@@ -33,12 +34,41 @@ func AuthMiddleware(tokenService *jwt.TokenService) fiber.Handler {
 			})
 		}
 
-		// Validate token
+		// Validate token first to get claims
 		claims, err := tokenService.ValidateToken(token)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": "invalid token",
 			})
+		}
+
+		// Check if token is blacklisted
+		isBlacklisted, err := tokenBlacklist.IsBlacklisted(c.Context(), token)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error": "failed to verify token status",
+			})
+		}
+
+		if isBlacklisted {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "token has been revoked",
+			})
+		}
+
+		// Check if user has been blacklisted (password change)
+		if claims.IssuedAt != nil {
+			userBlacklisted, err := tokenBlacklist.IsUserBlacklisted(c.Context(), claims.UserID.String(), claims.IssuedAt.Time)
+			if err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error": "failed to verify token status",
+				})
+			}
+			if userBlacklisted {
+				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+					"error": "token invalidated due to password change",
+				})
+			}
 		}
 
 		// Check token type is "access"
@@ -53,6 +83,7 @@ func AuthMiddleware(tokenService *jwt.TokenService) fiber.Handler {
 		c.Locals("email", claims.Email)
 		c.Locals("roles", claims.Roles)
 		c.Locals("claims", claims)
+		c.Locals("token", token) // Store token for potential invalidation
 
 		// Continue to next handler
 		return c.Next()

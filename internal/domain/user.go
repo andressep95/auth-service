@@ -15,18 +15,22 @@ const (
 )
 
 type User struct {
-	ID            uuid.UUID  `json:"id" db:"id"`
-	Email         string     `json:"email" db:"email"`
-	PasswordHash  string     `json:"-" db:"password_hash"`
-	FirstName     string     `json:"first_name" db:"first_name"`
-	LastName      string     `json:"last_name" db:"last_name"`
-	Status        UserStatus `json:"status" db:"status"`
-	EmailVerified bool       `json:"email_verified" db:"email_verified"`
-	MFAEnabled    bool       `json:"mfa_enabled" db:"mfa_enabled"`
-	MFASecret     *string    `json:"-" db:"mfa_secret"`
-	FailedLogins  int        `json:"-" db:"failed_logins"`
-	LockedUntil   *time.Time `json:"-" db:"locked_until"`
-	CreatedAt     time.Time  `json:"created_at" db:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at" db:"updated_at"`
-	LastLoginAt   *time.Time `json:"last_login_at" db:"last_login_at"`
+	ID                              uuid.UUID  `json:"id" db:"id"`
+	Email                           string     `json:"email" db:"email"`
+	PasswordHash                    string     `json:"-" db:"password_hash"`
+	FirstName                       string     `json:"first_name" db:"first_name"`
+	LastName                        string     `json:"last_name" db:"last_name"`
+	Status                          UserStatus `json:"status" db:"status"`
+	EmailVerified                   bool       `json:"email_verified" db:"email_verified"`
+	MFAEnabled                      bool       `json:"mfa_enabled" db:"mfa_enabled"`
+	MFASecret                       *string    `json:"-" db:"mfa_secret"`
+	FailedLogins                    int        `json:"-" db:"failed_logins"`
+	LockedUntil                     *time.Time `json:"-" db:"locked_until"`
+	EmailVerificationToken          *string    `json:"-" db:"email_verification_token"`
+	EmailVerificationTokenExpiresAt *time.Time `json:"-" db:"email_verification_token_expires_at"`
+	PasswordResetToken              *string    `json:"-" db:"password_reset_token"`
+	PasswordResetTokenExpiresAt     *time.Time `json:"-" db:"password_reset_token_expires_at"`
+	CreatedAt                       time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt                       time.Time  `json:"updated_at" db:"updated_at"`
+	LastLoginAt                     *time.Time `json:"last_login_at" db:"last_login_at"`
 }

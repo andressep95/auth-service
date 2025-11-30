@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"strings"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/andressep95/auth-service/internal/service"
 	"github.com/andressep95/auth-service/pkg/validator"
@@ -92,7 +94,19 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 		})
 	}
 
-	if err := h.authService.Logout(c.Context(), req.RefreshToken); err != nil {
+	// Extract access token from Authorization header (optional)
+	// If provided, it will be blacklisted immediately
+	accessToken := ""
+	authHeader := c.Get("Authorization")
+	if authHeader != "" {
+		// Check if it's a Bearer token
+		parts := strings.SplitN(authHeader, " ", 2)
+		if len(parts) == 2 && parts[0] == "Bearer" {
+			accessToken = parts[1]
+		}
+	}
+
+	if err := h.authService.Logout(c.Context(), req.RefreshToken, accessToken); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
 		})

@@ -168,6 +168,18 @@ func (r *sessionRepository) DeleteByToken(ctx context.Context, tokenHash string)
 	return nil
 }
 
+// DeleteByUserID removes all sessions for a specific user
+func (r *sessionRepository) DeleteByUserID(ctx context.Context, userID uuid.UUID) error {
+	query := `DELETE FROM sessions WHERE user_id = $1`
+
+	_, err := r.db.ExecContext(ctx, query, userID)
+	if err != nil {
+		return fmt.Errorf("failed to delete sessions by user id: %w", err)
+	}
+
+	return nil
+}
+
 // DeleteExpired removes all expired sessions from the database
 func (r *sessionRepository) DeleteExpired(ctx context.Context) error {
 	query := `DELETE FROM sessions WHERE expires_at <= $1`

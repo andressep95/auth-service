@@ -9,6 +9,7 @@ func SetupRoutes(
 	authHandler *AuthHandler,
 	userHandler *UserHandler,
 	roleHandler *RoleHandler,
+	passwordHandler *PasswordHandler,
 	healthHandler *HealthHandler,
 	authMiddleware fiber.Handler,
 	requireAdmin fiber.Handler,
@@ -27,10 +28,15 @@ func SetupRoutes(
 	auth.Post("/login", authHandler.Login)
 	auth.Post("/refresh", authHandler.RefreshToken)
 	auth.Post("/logout", authHandler.Logout)
+	auth.Post("/verify-email", userHandler.VerifyEmail)
+	auth.Post("/resend-verification", userHandler.ResendVerificationEmail)
+	auth.Post("/forgot-password", userHandler.ForgotPassword)
+	auth.Post("/reset-password", userHandler.ResetPassword)
 
 	// User routes (protected)
 	users := api.Group("/users", authMiddleware)
 	users.Get("/me", userHandler.GetMe)
+	users.Put("/me/password", passwordHandler.ChangePassword)
 	users.Get("/me/roles", roleHandler.GetMyRoles)
 	users.Get("/me/permissions", roleHandler.GetMyPermissions)
 
