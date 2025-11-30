@@ -114,3 +114,8 @@ func (s *TokenService) ValidateToken(tokenString string) (*domain.Claims, error)
 
 	return claims, nil
 }
+
+// GetPublicKey returns the RSA public key for JWKS endpoint
+func (s *TokenService) GetPublicKey() *rsa.PublicKey {
+	return s.publicKey
+}

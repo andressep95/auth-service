@@ -11,6 +11,7 @@ func SetupRoutes(
 	roleHandler *RoleHandler,
 	passwordHandler *PasswordHandler,
 	healthHandler *HealthHandler,
+	jwksHandler *JWKSHandler,
 	authMiddleware fiber.Handler,
 	requireAdmin fiber.Handler,
 	requireModerator fiber.Handler,
@@ -18,6 +19,9 @@ func SetupRoutes(
 	// Health checks (public)
 	app.Get("/health", healthHandler.Health)
 	app.Get("/ready", healthHandler.Ready)
+
+	// JWKS endpoint (public)
+	app.Get("/.well-known/jwks.json", jwksHandler.GetJWKS)
 
 	// API v1
 	api := app.Group("/api/v1")
