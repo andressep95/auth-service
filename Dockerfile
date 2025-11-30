@@ -21,8 +21,8 @@ FROM alpine:latest
 
 WORKDIR /app
 
-# Install openssl for key generation
-RUN apk --no-cache add openssl ca-certificates
+# Install openssl for key generation and postgresql-client for migrations
+RUN apk --no-cache add openssl ca-certificates postgresql-client
 
 # Copy binary from builder
 COPY --from=builder /app/main .
