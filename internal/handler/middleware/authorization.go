@@ -105,12 +105,12 @@ func RequireAnyPermission(roleService *service.RoleService, permissions []struct
 	}
 }
 
-// RequireAdmin is a convenience middleware for requiring admin role
+// RequireAdmin is a convenience middleware for requiring admin or super_admin role
 func RequireAdmin(roleService *service.RoleService) fiber.Handler {
-	return RequireRole(roleService, "admin")
+	return RequireRole(roleService, "admin", "super_admin")
 }
 
-// RequireModerator is a convenience middleware for requiring moderator or admin role
+// RequireModerator is a convenience middleware for requiring moderator, admin or super_admin role
 func RequireModerator(roleService *service.RoleService) fiber.Handler {
-	return RequireRole(roleService, "admin", "moderator")
+	return RequireRole(roleService, "admin", "moderator", "super_admin")
 }
