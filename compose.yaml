@@ -1,0 +1,80 @@
+version: "3.8"
+
+services:
+  auth-service:
+    build:
+      context: .
+      target: final
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVER_PORT=8080
+      - ENVIRONMENT=development
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=auth
+      - DB_PASSWORD=auth
+      - DB_NAME=authdb
+      - DB_SSLMODE=disable
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=
+      - REDIS_DB=0
+      - JWT_PRIVATE_KEY_PATH=/keys/private.pem
+      - JWT_PUBLIC_KEY_PATH=/keys/public.pem
+      - JWT_ACCESS_EXPIRY=15m
+      - JWT_REFRESH_EXPIRY=168h
+      - JWT_ISSUER=auth-service
+      - AUTH_MAX_FAILED_LOGINS=5
+      - AUTH_LOCK_DURATION=15m
+    volumes:
+      - ./keys:/keys:ro
+      - ./migrations:/migrations:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - auth-network
+
+  postgres:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: auth
+      POSTGRES_PASSWORD: auth
+      POSTGRES_DB: authdb
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auth -d authdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - auth-network
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - auth-network
+
+volumes:
+  pgdata:
+
+networks:
+  auth-network:
+    driver: bridge
+
