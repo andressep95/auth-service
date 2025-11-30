@@ -52,8 +52,10 @@ func SetupRoutes(
 	roles.Delete("/:id", roleHandler.DeleteRole)
 	roles.Get("/:id/permissions", roleHandler.GetRolePermissions)
 
-	// User role management (admin only)
+	// User management (admin only)
 	adminUsers := admin.Group("/users")
+	adminUsers.Get("/", userHandler.ListUsers)
+	adminUsers.Get("/:id", userHandler.GetUser)
 	adminUsers.Post("/:userId/roles/:roleId", roleHandler.AssignRoleToUser)
 	adminUsers.Delete("/:userId/roles/:roleId", roleHandler.RemoveRoleFromUser)
 	adminUsers.Get("/:userId/roles", roleHandler.GetUserRoles)

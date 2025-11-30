@@ -36,7 +36,7 @@ info:
     - ✅ Invalidar todos los tokens antiguos
     - ✅ Permitir nuevos logins inmediatamente
     - ✅ Evitar bloqueos permanentes del usuario
-  version: 1.1.0
+  version: 1.2.0
   contact:
     name: API Support
     email: support@authservice.com
@@ -44,6 +44,14 @@ info:
     name: MIT
     url: https://opensource.org/licenses/MIT
   x-changelog:
+    - version: 1.2.0
+      date: 2024-12-01
+      changes:
+        - "✅ Agregados endpoints de listado de usuarios (admin)"
+        - "✅ GET /api/v1/admin/users - Lista usuarios con paginación y búsqueda"
+        - "✅ GET /api/v1/admin/users/:id - Obtener usuario específico"
+        - "✅ Respuestas incluyen roles asignados a cada usuario"
+        - "📝 Documentación consolidada en 3 archivos principales"
     - version: 1.1.0
       date: 2024-11-30
       changes:
@@ -868,6 +876,104 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  # ===== ADMIN - USER MANAGEMENT =====
+  /api/v1/admin/users:
+    get:
+      tags:
+        - Users
+      summary: Listar usuarios
+      description: |
+        Lista todos los usuarios del sistema con paginación y búsqueda.
+        Incluye los roles asignados a cada usuario.
+        **Requiere rol:** admin
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Número de página
+          example: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Cantidad de usuarios por página
+          example: 20
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Buscar por email, nombre o apellido
+          example: john
+      responses:
+        '200':
+          description: Lista de usuarios
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserWithRoles'
+                  pagination:
+                    type: object
+                    properties:
+                      page:
+                        type: integer
+                        example: 1
+                      limit:
+                        type: integer
+                        example: 20
+                      total:
+                        type: integer
+                        example: 150
+                      total_pages:
+                        type: integer
+                        example: 8
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/v1/admin/users/{id}:
+    get:
+      tags:
+        - Users
+      summary: Obtener usuario por ID
+      description: |
+        Obtiene los detalles de un usuario específico.
+        Incluye los roles asignados al usuario.
+        **Requiere rol:** admin
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID del usuario
+          example: 123e4567-e89b-12d3-a456-426614174000
+      responses:
+        '200':
+          description: Detalles del usuario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserWithRoles'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   # ===== MODERATOR =====
   /api/v1/moderator/users/{userId}/roles:
     get:
@@ -1066,6 +1172,18 @@ components:
           type: string
           format: date-time
           example: 2025-01-15T10:30:00Z
+
+    UserWithRoles:
+      allOf:
+        - $ref: '#/components/schemas/User'
+        - type: object
+          properties:
+            roles:
+              type: array
+              items:
+                type: string
+              description: Lista de roles asignados al usuario
+              example: ["user", "admin"]
 
     Role:
       type: object

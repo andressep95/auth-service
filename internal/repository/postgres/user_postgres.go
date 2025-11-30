@@ -252,6 +252,24 @@ func (r *userRepository) GetUserRoles(ctx context.Context, userID, appID uuid.UU
 	return roles, nil
 }
 
+// GetUserRolesAllApps retrieves all roles for a user across all applications
+func (r *userRepository) GetUserRolesAllApps(ctx context.Context, userID uuid.UUID) ([]string, error) {
+	query := `
+		SELECT DISTINCT r.name
+		FROM roles r
+		INNER JOIN user_roles ur ON r.id = ur.role_id
+		WHERE ur.user_id = $1
+		ORDER BY r.name`
+
+	var roles []string
+	err := r.db.SelectContext(ctx, &roles, query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user roles: %w", err)
+	}
+
+	return roles, nil
+}
+
 // GetByVerificationToken retrieves a user by their email verification token
 func (r *userRepository) GetByVerificationToken(ctx context.Context, token string) (*domain.User, error) {
 	query := `
@@ -298,4 +316,53 @@ func (r *userRepository) GetByPasswordResetToken(ctx context.Context, token stri
 	}
 
 	return &user, nil
+}
+
+// List retrieves users with pagination and optional search
+func (r *userRepository) List(ctx context.Context, limit, offset int, search string) ([]*domain.User, int, error) {
+	var users []*domain.User
+	var total int
+
+	// Count total
+	countQuery := `SELECT COUNT(*) FROM users WHERE 1=1`
+	if search != "" {
+		countQuery += ` AND (email ILIKE '%' || $1 || '%' OR first_name ILIKE '%' || $1 || '%' OR last_name ILIKE '%' || $1 || '%')`
+		err := r.db.GetContext(ctx, &total, countQuery, search)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to count users: %w", err)
+		}
+	} else {
+		err := r.db.GetContext(ctx, &total, countQuery)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to count users: %w", err)
+		}
+	}
+
+	// Get users
+	query := `
+		SELECT id, email, password_hash, first_name, last_name,
+			   status, email_verified, mfa_enabled, mfa_secret,
+			   failed_logins, locked_until,
+			   email_verification_token, email_verification_token_expires_at,
+			   password_reset_token, password_reset_token_expires_at,
+			   created_at, updated_at, last_login_at
+		FROM users
+		WHERE 1=1`
+
+	if search != "" {
+		query += ` AND (email ILIKE '%' || $1 || '%' OR first_name ILIKE '%' || $1 || '%' OR last_name ILIKE '%' || $1 || '%')`
+		query += ` ORDER BY created_at DESC LIMIT $2 OFFSET $3`
+		err := r.db.SelectContext(ctx, &users, query, search, limit, offset)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to list users: %w", err)
+		}
+	} else {
+		query += ` ORDER BY created_at DESC LIMIT $1 OFFSET $2`
+		err := r.db.SelectContext(ctx, &users, query, limit, offset)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to list users: %w", err)
+		}
+	}
+
+	return users, total, nil
 }

@@ -19,4 +19,6 @@ type UserRepository interface {
 	ResetFailedLogins(ctx context.Context, id uuid.UUID) error
 	IncrementFailedLogins(ctx context.Context, id uuid.UUID) error
 	GetUserRoles(ctx context.Context, userID, appID uuid.UUID) ([]string, error)
+	GetUserRolesAllApps(ctx context.Context, userID uuid.UUID) ([]string, error)
+	List(ctx context.Context, limit, offset int, search string) ([]*domain.User, int, error)
 }

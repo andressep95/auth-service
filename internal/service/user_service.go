@@ -323,6 +323,16 @@ func (s *UserService) ResetPassword(ctx context.Context, token, newPassword stri
 	return nil
 }
 
+// List retrieves users with pagination and search
+func (s *UserService) List(ctx context.Context, limit, offset int, search string) ([]*domain.User, int, error) {
+	return s.userRepo.List(ctx, limit, offset, search)
+}
+
+// GetUserRolesAllApps retrieves all roles for a user across all applications
+func (s *UserService) GetUserRolesAllApps(ctx context.Context, userID uuid.UUID) ([]string, error) {
+	return s.userRepo.GetUserRolesAllApps(ctx, userID)
+}
+
 // generateSecureToken generates a cryptographically secure random token
 func generateSecureToken(length int) (string, error) {
 	bytes := make([]byte, length)

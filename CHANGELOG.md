@@ -1,83 +1,122 @@
 # Changelog
 
-Todos los cambios notables en este proyecto ser\u00e1n documentados en este archivo.
+Todos los cambios notables en este proyecto serán documentados en este archivo.
 
-El formato est\u00e1 basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
+El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/),
 y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
+
+## [1.2.0] - 2024-12-01
+
+### ✨ Agregado
+
+- **User Management Endpoints**: Endpoints de administración de usuarios
+  - Endpoint `GET /api/v1/admin/users` - Listar usuarios con paginación y búsqueda
+  - Endpoint `GET /api/v1/admin/users/:id` - Obtener usuario específico
+  - Respuestas incluyen array de roles asignados a cada usuario
+  - Paginación: limit (default 20, max 100), page (default 1)
+  - Búsqueda: por email, first_name, last_name (ILIKE)
+
+### 📝 Documentación
+
+- **Consolidación**: Reducida documentación de 10 archivos .md a 3 principales
+  - `README.md` - Overview y quick start
+  - `CLAUDE.md` - Documentación central completa (todo en uno)
+  - `CHANGELOG.md` - Historial de versiones
+  - Carpeta `docs/` con documentación técnica (architecture, diagrams, roadmap, openapi)
+
+- **Scripts**: Simplificados de 3 scripts a 1
+  - Solo `scripts/full-setup.sh` (incluye generación de claves y creación de admin)
+  - Eliminados `generate-keys.sh` y `create-first-admin.sh` (redundantes)
+  - Admins adicionales se crean vía API endpoints
+
+- Actualizado `docs/openapi.yaml` con:
+  - Endpoints de listado de usuarios
+  - Schema `UserWithRoles` con array de roles
+  - Parámetros de paginación y búsqueda
+  - Versión actualizada a 1.2.0
+
+### 🛠️ Técnico
+
+- Agregado método `List()` en UserRepository con paginación y búsqueda
+- Agregado método `GetUserRolesAllApps()` para obtener roles de usuario
+- Implementada query SQL con ILIKE para búsqueda case-insensitive
+- Handlers retornan struct `UserWithRoles` con roles embebidos
+
+---
 
 ## [1.1.0] - 2024-11-30
 
-### \ud83d\udd27 Corregido (CRÍTICO)
+### 🔧 Corregido (CRÍTICO)
 
-- **Token Blacklist Bug**: Corregido bug cr\u00edtico donde el reset de contrase\u00f1a invalidaba TODOS los tokens, incluyendo los nuevos
+- **Token Blacklist Bug**: Corregido bug crítico donde el reset de contraseña invalidaba TODOS los tokens, incluyendo los nuevos
   - **Problema**: Se guardaba timestamp futuro (NOW + 24h) en lugar de timestamp actual
-  - **Impacto**: Usuarios no pod\u00edan hacer login despu\u00e9s de resetear contrase\u00f1a
-  - **Soluci\u00f3n**: Cambiar a timestamp actual, solo invalidar tokens emitidos ANTES del reset
+  - **Impacto**: Usuarios no podían hacer login después de resetear contraseña
+  - **Solución**: Cambiar a timestamp actual, solo invalidar tokens emitidos ANTES del reset
   - **Archivos**: `pkg/blacklist/blacklist.go`, `internal/service/auth_service.go`, `internal/service/user_service.go`
 
-### \u2728 Agregado
+### ✨ Agregado
 
-- **Password Reset Flow**: Flujo completo de reset de contrase\u00f1a por email
+- **Password Reset Flow**: Flujo completo de reset de contraseña por email
   - Endpoint `POST /api/v1/auth/forgot-password` - Solicitar reset
   - Endpoint `POST /api/v1/auth/reset-password` - Resetear con token
   - Token expira en 1 hora
-  - Invalidaci\u00f3n autom\u00e1tica de sesiones y tokens antiguos
-  - Email de confirmaci\u00f3n
+  - Invalidación automática de sesiones y tokens antiguos
+  - Email de confirmación
 
-- **Email Verification**: Verificaci\u00f3n de email al registrarse
+- **Email Verification**: Verificación de email al registrarse
   - Endpoint `GET /api/v1/auth/verify-email/{token}` - Verificar email
   - Endpoint `POST /api/v1/auth/resend-verification` - Reenviar email
   - Token expira en 24 horas
   - Email de bienvenida al verificar
 
-- **Change Password**: Cambio de contrase\u00f1a para usuarios autenticados
-  - Endpoint `PUT /api/v1/users/me/password` - Cambiar contrase\u00f1a
-  - Requiere contrase\u00f1a actual para validaci\u00f3n
-  - Invalidaci\u00f3n autom\u00e1tica de sesiones y tokens
+- **Change Password**: Cambio de contraseña para usuarios autenticados
+  - Endpoint `PUT /api/v1/users/me/password` - Cambiar contraseña
+  - Requiere contraseña actual para validación
+  - Invalidación automática de sesiones y tokens
 
-- **Email Service**: Integraci\u00f3n con Resend
-  - Emails transaccionales (verificaci\u00f3n, reset, bienvenida, confirmaci\u00f3n)
+- **Email Service**: Integración con Resend
+  - Emails transaccionales (verificación, reset, bienvenida, confirmación)
   - Templates HTML personalizados
-  - Env\u00edo as\u00edncrono para no bloquear requests
+  - Envío asíncrono para no bloquear requests
 
 - **Testing**: Script automatizado de pruebas
   - `test-reset-flow.sh` - Prueba completa del flujo de reset
-  - Valida invalidaci\u00f3n de tokens antiguos
+  - Valida invalidación de tokens antiguos
   - Valida funcionamiento de tokens nuevos
 
-### \ud83d\udcdd Documentaci\u00f3n
+### 📝 Documentación
 
 - Actualizado `CLAUDE.md` con:
-  - Documentaci\u00f3n completa del sistema de blacklist
-  - Explicaci\u00f3n de la correcci\u00f3n aplicada
+  - Documentación completa del sistema de blacklist
+  - Explicación de la corrección aplicada
   - Ejemplos de flujos de seguridad
-  - Secci\u00f3n de testing automatizado
+  - Sección de testing automatizado
 
 - Actualizado `docs/openapi.yaml` con:
   - Endpoints de forgot-password y reset-password
-  - Endpoints de verificaci\u00f3n de email
-  - Endpoint de cambio de contrase\u00f1a
-  - Documentaci\u00f3n del sistema de blacklist
+  - Endpoints de verificación de email
+  - Endpoint de cambio de contraseña
+  - Documentación del sistema de blacklist
   - Changelog en metadata
 
-### \ud83d\udd12 Seguridad
+### 🔒 Seguridad
 
-- **Mejorada**: Invalidaci\u00f3n de tokens por timestamp
+- **Mejorada**: Invalidación de tokens por timestamp
   - Tokens antiguos se invalidan correctamente
   - Tokens nuevos funcionan inmediatamente
   - No hay ventana de vulnerabilidad
-  - TTL autom\u00e1tico de 24h en Redis
+  - TTL automático de 24h en Redis
 
-- **Mejorada**: Reset de contrase\u00f1a
+- **Mejorada**: Reset de contraseña
   - Token de un solo uso
-  - Expiraci\u00f3n en 1 hora
-  - Invalidaci\u00f3n de todas las sesiones
-  - Email de confirmaci\u00f3n
+  - Expiración en 1 hora
+  - Invalidación de todas las sesiones
+  - Email de confirmación
 
-### \ud83d\udee0\ufe0f T\u00e9cnico
+### 🛠️ Técnico
 
-- Agregada dependencia circular controlada: `UserService` \u2192 `AuthService`
-- M\u00e9todo `SetAuthService()` para inyecci\u00f3n de dependencia
+- Agregada dependencia circular controlada: `UserService` → `AuthService`
+- Método `SetAuthService()` para inyección de dependencia
 - Refactorizado `BlacklistUser()` para usar TTL en lugar de timestamp futuro
 - Mejorado manejo de errores en servicios de email
 
@@ -85,29 +124,29 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ## [1.0.0] - 2024-11-15
 
-### \ud83c\udf89 Release Inicial
+### 🎉 Release Inicial
 
-#### \u2728 Caracter\u00edsticas
+#### ✨ Características
 
-- **Autenticaci\u00f3n**
-  - Registro de usuarios con validaci\u00f3n
+- **Autenticación**
+  - Registro de usuarios con validación
   - Login con email/password
-  - JWT con RS256 (asim\u00e9trico)
-  - Access token (15 min) y Refresh token (7 d\u00edas)
-  - Token rotation autom\u00e1tico
-  - Logout con invalidaci\u00f3n de sesi\u00f3n
+  - JWT con RS256 (asimétrico)
+  - Access token (15 min) y Refresh token (7 días)
+  - Token rotation automático
+  - Logout con invalidación de sesión
 
-- **Autorizaci\u00f3n (RBAC)**
-  - Sistema de roles por aplicaci\u00f3n
+- **Autorización (RBAC)**
+  - Sistema de roles por aplicación
   - 3 roles predefinidos: user, moderator, admin
   - 14 permisos granulares
-  - Auto-asignaci\u00f3n de rol "user" en registro
-  - Middlewares de autorizaci\u00f3n
-  - Gesti\u00f3n completa de roles (CRUD)
+  - Auto-asignación de rol "user" en registro
+  - Middlewares de autorización
+  - Gestión completa de roles (CRUD)
 
 - **Seguridad**
   - Password hashing con Argon2id
-  - Account locking (5 intentos \u2192 15 min)
+  - Account locking (5 intentos → 15 min)
   - CORS configurable
   - Refresh tokens hasheados (SHA-256)
   - Sesiones en PostgreSQL
@@ -120,16 +159,16 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
   - Connection pooling
   - Migraciones SQL versionadas
 
-#### \ud83d\udcdd Documentaci\u00f3n
+#### 📝 Documentación
 
 - README.md completo
 - ARCHITECTURE.md con diagramas
 - RBAC_GUIDE.md detallado
 - TESTING_RBAC.md paso a paso
 - OpenAPI 3.0 specification
-- Scripts de automatizaci\u00f3n
+- Scripts de automatización
 
-#### \ud83d\udee0\ufe0f Stack T\u00e9cnico
+#### 🛠️ Stack Técnico
 
 - Go 1.24
 - Fiber v2 (web framework)
@@ -143,20 +182,20 @@ y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ## Tipos de Cambios
 
-- `\u2728 Agregado` - Nueva funcionalidad
-- `\ud83d\udd27 Corregido` - Bug fix
-- `\ud83d\udd12 Seguridad` - Mejora de seguridad
-- `\ud83d\udcdd Documentaci\u00f3n` - Cambios en documentaci\u00f3n
-- `\ud83d\udee0\ufe0f T\u00e9cnico` - Cambios t\u00e9cnicos internos
-- `\u26a0\ufe0f Deprecado` - Funcionalidad que ser\u00e1 removida
-- `\ud83d\uddd1\ufe0f Removido` - Funcionalidad removida
-- `\ud83d\ude80 Performance` - Mejora de rendimiento
+- `✨ Agregado` - Nueva funcionalidad
+- `🔧 Corregido` - Bug fix
+- `🔒 Seguridad` - Mejora de seguridad
+- `📝 Documentación` - Cambios en documentación
+- `🛠️ Técnico` - Cambios técnicos internos
+- `⚠️ Deprecado` - Funcionalidad que será removida
+- `🗑️ Removido` - Funcionalidad removida
+- `🚀 Performance` - Mejora de rendimiento
 
 ---
 
 ## Links
 
 - [Repositorio](https://github.com/your-org/auth-service)
-- [Documentaci\u00f3n](./CLAUDE.md)
+- [Documentación](./CLAUDE.md)
 - [Issues](https://github.com/your-org/auth-service/issues)
-- [Roadmap](./ROADMAP.md)
+- [Roadmap](./docs/roadmap.md)

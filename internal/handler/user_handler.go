@@ -3,6 +3,7 @@ package handler
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/andressep95/auth-service/internal/domain"
 	"github.com/andressep95/auth-service/internal/service"
 	"github.com/andressep95/auth-service/pkg/validator"
 )
@@ -189,4 +190,85 @@ func (h *UserHandler) ResetPassword(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "Password reset successfully",
 	})
+}
+
+// ListUsers returns paginated list of users (admin only)
+// GET /api/v1/admin/users
+func (h *UserHandler) ListUsers(c *fiber.Ctx) error {
+	limit := c.QueryInt("limit", 20)
+	page := c.QueryInt("page", 1)
+	search := c.Query("search", "")
+
+	if limit > 100 {
+		limit = 100
+	}
+	if page < 1 {
+		page = 1
+	}
+
+	offset := (page - 1) * limit
+
+	users, total, err := h.userService.List(c.Context(), limit, offset, search)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to retrieve users",
+		})
+	}
+
+	// Add roles to response
+	type UserWithRoles struct {
+		*domain.User
+		Roles []string `json:"roles"`
+	}
+
+	usersWithRoles := make([]UserWithRoles, len(users))
+	for i, user := range users {
+		roles, _ := h.userService.GetUserRolesAllApps(c.Context(), user.ID)
+		usersWithRoles[i] = UserWithRoles{
+			User:  user,
+			Roles: roles,
+		}
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"users": usersWithRoles,
+		"pagination": fiber.Map{
+			"total":       total,
+			"page":        page,
+			"limit":       limit,
+			"total_pages": (total + limit - 1) / limit,
+		},
+	})
+}
+
+// GetUser returns a specific user by ID (admin only)
+// GET /api/v1/admin/users/:id
+func (h *UserHandler) GetUser(c *fiber.Ctx) error {
+	userID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid user ID",
+		})
+	}
+
+	user, err := h.userService.GetByID(c.Context(), userID)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "User not found",
+		})
+	}
+
+	// Get user roles (for all apps)
+	type UserWithRoles struct {
+		*domain.User
+		Roles []string `json:"roles"`
+	}
+
+	roles, _ := h.userService.GetUserRolesAllApps(c.Context(), user.ID)
+	response := UserWithRoles{
+		User:  user,
+		Roles: roles,
+	}
+
+	return c.Status(fiber.StatusOK).JSON(response)
 }
