@@ -1,4 +1,4 @@
-openapi: 3.0.3
+openapi: 3.1.0
 info:
   title: Auth Service API
   description: |
@@ -74,7 +74,7 @@ info:
 servers:
   - url: http://localhost:8080
     description: Desarrollo local
-  - url: https://api.production.com
+  - url: https://auth.cloudcentinel.com
     description: Producción
 
 tags:
@@ -293,7 +293,7 @@ paths:
         El token de reset expira en 1 hora.
         
         **Seguridad:** Siempre retorna 200 OK aunque el email no exista,
-        para no revelar qué emails están registrados.
+        para no revelar qué emails están registrados.ados.
       security: []
       requestBody:
         required: true
@@ -1076,8 +1076,9 @@ components:
           maxLength: 100
           example: Pérez
         phone_number:
-          type: string
-          nullable: true
+          anyOf:
+            - type: string
+            - type: "null"
           example: "+56912345678"
 
     LoginRequest:
@@ -1143,8 +1144,9 @@ components:
           type: string
           example: Pérez
         phone_number:
-          type: string
-          nullable: true
+          anyOf:
+            - type: string
+            - type: "null"
           example: "+56912345678"
         email_verified:
           type: boolean
@@ -1160,9 +1162,10 @@ components:
           type: integer
           example: 0
         account_locked_until:
-          type: string
-          format: date-time
-          nullable: true
+          anyOf:
+            - type: string
+              format: date-time
+            - type: "null"
           example: null
         created_at:
           type: string
@@ -1268,9 +1271,10 @@ components:
           type: string
           example: INVALID_CREDENTIALS
         details:
-          type: object
-          nullable: true
-          additionalProperties: true
+          anyOf:
+            - type: object
+              additionalProperties: true
+            - type: "null"
 
   # ===== RESPONSES =====
   responses:
