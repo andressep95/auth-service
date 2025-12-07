@@ -811,6 +811,10 @@ paths:
         - `exclude_current=true`: Mantiene la sesión actual activa y cierra solo las demás
         - `exclude_current=false` (default): Cierra TODAS las sesiones incluyendo la actual
 
+        **Limitaciones:**
+        - Si `exclude_current=true` y no se puede identificar la sesión actual, se retorna error 400
+        - La identificación de la sesión actual requiere que el `session_id` esté disponible en el contexto de la request
+
         **Efectos:**
         - Elimina todas las sesiones de la base de datos
         - Invalida todos los refresh tokens
@@ -843,6 +847,16 @@ paths:
                     type: integer
                     description: Número de sesiones cerradas (solo si exclude_current=true)
                     example: 2
+        '400':
+          description: No se puede identificar la sesión actual para excluirla
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Cannot identify current session. Cannot exclude current session when session_id is not available in the request context.
         '401':
           $ref: '#/components/responses/Unauthorized'
 

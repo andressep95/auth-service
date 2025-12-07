@@ -1,9 +1,9 @@
 package handler
 
 import (
+	"github.com/andressep95/auth-service/internal/repository"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"github.com/andressep95/auth-service/internal/repository"
 )
 
 type SessionHandler struct {
@@ -140,14 +140,10 @@ func (h *SessionHandler) DeleteAllSessions(c *fiber.Ctx) error {
 		// Get current session ID
 		currentSessionID, ok := c.Locals("session_id").(uuid.UUID)
 		if !ok {
-			// If we can't identify current session, delete all
-			if err := h.sessionRepo.DeleteByUserID(c.Context(), userID); err != nil {
-				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-					"error": "Failed to delete sessions",
-				})
-			}
-			return c.JSON(fiber.Map{
-				"message": "All sessions closed successfully",
+			// If we can't identify current session, return error
+			// We cannot safely exclude the current session if we can't identify it
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "Cannot identify current session. Cannot exclude current session when session_id is not available in the request context.",
 			})
 		}
 
