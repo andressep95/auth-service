@@ -482,7 +482,7 @@ sequenceDiagram
     API-->>Client: 200 OK / Redirect to app
 ```
 
-**⚠️ NO IMPLEMENTADO** - Tabla `email_verifications` existe pero no hay handlers/servicios
+**✅ IMPLEMENTADO** - La funcionalidad usa campos `email_verification_token` y `email_verification_token_expires_at` en la tabla `users` directamente. La tabla `email_verifications` fue removida en v1.5.0 (no se usaba).
 
 ---
 
@@ -560,7 +560,7 @@ sequenceDiagram
     end
 ```
 
-**⚠️ NO IMPLEMENTADO** - Tabla `password_resets` existe pero no hay handlers/servicios
+**✅ IMPLEMENTADO** - La funcionalidad usa campos `password_reset_token` y `password_reset_token_expires_at` en la tabla `users` directamente. La tabla `password_resets` fue removida en v1.5.0 (no se usaba).
 
 ---
 
