@@ -10,6 +10,7 @@ func SetupRoutes(
 	userHandler *UserHandler,
 	roleHandler *RoleHandler,
 	passwordHandler *PasswordHandler,
+	sessionHandler *SessionHandler,
 	healthHandler *HealthHandler,
 	jwksHandler *JWKSHandler,
 	setupHandler *SetupHandler,
@@ -49,6 +50,11 @@ func SetupRoutes(
 	users.Put("/me/password", passwordHandler.ChangePassword)
 	users.Get("/me/roles", roleHandler.GetMyRoles)
 	users.Get("/me/permissions", roleHandler.GetMyPermissions)
+
+	// Session management (protected)
+	users.Get("/me/sessions", sessionHandler.GetMySessions)
+	users.Delete("/me/sessions/:id", sessionHandler.DeleteSession)
+	users.Delete("/me/sessions", sessionHandler.DeleteAllSessions)
 
 	// Admin routes (require admin role)
 	admin := api.Group("/admin", authMiddleware, requireAdmin)

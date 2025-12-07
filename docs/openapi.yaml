@@ -36,7 +36,7 @@ info:
     - ✅ Invalidar todos los tokens antiguos
     - ✅ Permitir nuevos logins inmediatamente
     - ✅ Evitar bloqueos permanentes del usuario
-  version: 1.2.0
+  version: 1.4.0
   contact:
     name: API Support
     email: support@authservice.com
@@ -44,6 +44,25 @@ info:
     name: MIT
     url: https://opensource.org/licenses/MIT
   x-changelog:
+    - version: 1.4.0
+      date: 2024-12-07
+      changes:
+        - "✅ Implementado Session Management completo"
+        - "✅ GET /api/v1/users/me/sessions - Listar sesiones activas"
+        - "✅ DELETE /api/v1/users/me/sessions/:id - Cerrar sesión específica"
+        - "✅ DELETE /api/v1/users/me/sessions - Cerrar todas las sesiones"
+        - "✅ Agregado schema Session con metadata (IP, User-Agent)"
+        - "✅ Handler completo con validación de ownership"
+        - "🔒 Mejora de seguridad: usuarios pueden auditar y cerrar sesiones remotamente"
+    - version: 1.3.0
+      date: 2024-12-07
+      changes:
+        - "✅ Documentados endpoints JWKS (/.well-known/jwks.json)"
+        - "✅ Documentado endpoint de setup de super admin"
+        - "✅ Documentados 3 endpoints de App Management (super-admin)"
+        - "✅ Agregados schemas: JWKS, JWK, App"
+        - "✅ Agregados tags: JWKS, Setup, Apps"
+        - "📝 Documentación completa de funcionalidades implementadas"
     - version: 1.2.0
       date: 2024-12-01
       changes:
@@ -80,6 +99,10 @@ servers:
 tags:
   - name: Health
     description: Endpoints de health check
+  - name: JWKS
+    description: JSON Web Key Set para validación de tokens
+  - name: Setup
+    description: Configuración inicial del sistema
   - name: Authentication
     description: Registro, login, refresh y logout
   - name: Users
@@ -88,6 +111,8 @@ tags:
     description: Gestión de roles (Admin)
   - name: Permissions
     description: Consulta de permisos
+  - name: Apps
+    description: Gestión de aplicaciones (Super Admin)
 
 security:
   - BearerAuth: []
@@ -139,6 +164,142 @@ paths:
                   redis:
                     type: string
                     example: connected
+
+  # ===== JWKS =====
+  /.well-known/jwks.json:
+    get:
+      tags:
+        - JWKS
+      summary: JSON Web Key Set
+      description: |
+        Retorna el conjunto de claves públicas en formato JWK (JSON Web Key).
+        Este endpoint es utilizado por otros servicios para validar la firma
+        de los JWT tokens emitidos por este servicio de autenticación.
+
+        **Uso:**
+        - Validación de tokens JWT en microservicios
+        - Integración con API Gateways
+        - Verificación de firma RS256
+
+        **Formato JWK:**
+        - `kty`: Key Type (RSA)
+        - `use`: Public Key Use (sig = signature)
+        - `kid`: Key ID (identificador único de la clave)
+        - `alg`: Algorithm (RS256)
+        - `n`: Modulus (en base64url)
+        - `e`: Exponent (en base64url)
+      security: []
+      responses:
+        '200':
+          description: JWKS retornado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JWKS'
+              example:
+                keys:
+                  - kty: RSA
+                    use: sig
+                    kid: auth-service-key-1
+                    alg: RS256
+                    n: xGOr-H7A...
+                    e: AQAB
+
+  # ===== SETUP =====
+  /api/v1/setup/super-admin:
+    post:
+      tags:
+        - Setup
+      summary: Crear primer super administrador
+      description: |
+        Endpoint de configuración inicial para crear el primer super administrador
+        del sistema. Este endpoint solo puede ser utilizado una vez.
+
+        **Características de seguridad:**
+        - Solo funciona si no existe ningún super admin
+        - Retorna 403 si ya existe un super admin
+        - No requiere autenticación (endpoint público de setup)
+        - Una vez creado el super admin, este endpoint se bloquea
+
+        **El super admin puede:**
+        - Crear nuevas aplicaciones (multi-tenancy)
+        - Gestionar configuración global del sistema
+        - Acceder a todos los endpoints sin restricciones
+
+        **IMPORTANTE:** Este endpoint debe ser llamado inmediatamente después
+        del deployment inicial y luego debe ser protegido/deshabilitado en producción.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - first_name
+                - last_name
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: superadmin@cloudcentinel.com
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  example: SuperSecure123!
+                first_name:
+                  type: string
+                  minLength: 2
+                  example: Super
+                last_name:
+                  type: string
+                  minLength: 2
+                  example: Admin
+      responses:
+        '201':
+          description: Super admin creado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Super admin created successfully
+                  user:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      email:
+                        type: string
+                        format: email
+                      first_name:
+                        type: string
+                      last_name:
+                        type: string
+                      role:
+                        type: string
+                        example: super_admin
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          description: Super admin ya existe
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Super admin already exists. This endpoint can only be used once.
 
   # ===== AUTHENTICATION =====
   /api/v1/auth/register:
@@ -587,6 +748,170 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /api/v1/users/me/sessions:
+    get:
+      tags:
+        - Users
+      summary: Listar sesiones activas
+      description: |
+        Retorna todas las sesiones activas del usuario actual.
+
+        **Información incluida:**
+        - ID de la sesión
+        - User-Agent (navegador/dispositivo)
+        - Dirección IP
+        - Fecha de creación y expiración
+        - Indicador de sesión actual
+
+        **Casos de uso:**
+        - Ver dónde está logueado el usuario
+        - Detectar sesiones sospechosas
+        - Auditar accesos
+      responses:
+        '200':
+          description: Lista de sesiones activas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Session'
+                  count:
+                    type: integer
+                    example: 3
+              example:
+                sessions:
+                  - id: 123e4567-e89b-12d3-a456-426614174000
+                    user_agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)
+                    ip_address: 192.168.1.100
+                    expires_at: 2025-01-22T10:00:00Z
+                    created_at: 2025-01-15T10:00:00Z
+                    is_current: true
+                  - id: 456e7890-e89b-12d3-a456-426614174001
+                    user_agent: Mozilla/5.0 (iPhone; CPU iPhone OS 14_0)
+                    ip_address: 192.168.1.105
+                    expires_at: 2025-01-20T08:30:00Z
+                    created_at: 2025-01-13T08:30:00Z
+                    is_current: false
+                count: 2
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    delete:
+      tags:
+        - Users
+      summary: Cerrar todas las sesiones
+      description: |
+        Cierra todas las sesiones activas del usuario.
+
+        **Parámetros opcionales:**
+        - `exclude_current=true`: Mantiene la sesión actual activa y cierra solo las demás
+        - `exclude_current=false` (default): Cierra TODAS las sesiones incluyendo la actual
+
+        **Efectos:**
+        - Elimina todas las sesiones de la base de datos
+        - Invalida todos los refresh tokens
+        - El usuario debe hacer login nuevamente (si se incluye sesión actual)
+
+        **Uso recomendado:**
+        - Después de cambiar contraseña
+        - Al detectar actividad sospechosa
+        - Para cerrar sesión en todos los dispositivos
+      parameters:
+        - name: exclude_current
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: Si es true, mantiene la sesión actual activa
+          example: true
+      responses:
+        '200':
+          description: Sesiones cerradas exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: All sessions closed successfully
+                  deleted:
+                    type: integer
+                    description: Número de sesiones cerradas (solo si exclude_current=true)
+                    example: 2
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/users/me/sessions/{id}:
+    delete:
+      tags:
+        - Users
+      summary: Cerrar sesión específica
+      description: |
+        Cierra una sesión específica por su ID.
+
+        **Seguridad:**
+        - Solo puede cerrar sus propias sesiones
+        - Retorna 403 si intenta cerrar sesión de otro usuario
+        - Retorna 404 si la sesión no existe
+
+        **Efecto:**
+        - Elimina la sesión de la base de datos
+        - Invalida el refresh token asociado
+        - El dispositivo/navegador debe hacer login nuevamente
+
+        **Caso de uso:**
+        - Cerrar sesión sospechosa en dispositivo específico
+        - Logout remoto (ej: "cerrar sesión en iPhone")
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID de la sesión a cerrar
+          example: 123e4567-e89b-12d3-a456-426614174000
+      responses:
+        '200':
+          description: Sesión cerrada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Session closed successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: No autorizado para cerrar esta sesión
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: You can only delete your own sessions
+        '404':
+          description: Sesión no encontrada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Session not found
+
   # ===== ADMIN - ROLES =====
   /api/v1/admin/roles:
     get:
@@ -1007,6 +1332,135 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  # ===== SUPER ADMIN - APP MANAGEMENT =====
+  /api/v1/super-admin/apps:
+    post:
+      tags:
+        - Apps
+      summary: Crear nueva aplicación
+      description: |
+        Crea una nueva aplicación en el sistema multi-tenant.
+        **Requiere rol:** super_admin
+
+        Cada aplicación tiene:
+        - ID único (UUID)
+        - Client ID (generado automáticamente para OAuth/API access)
+        - Nombre y descripción
+        - Roles y permisos independientes
+
+        **Multi-tenancy:**
+        - Cada app tiene sus propios roles
+        - Los usuarios pueden tener diferentes roles en diferentes apps
+        - Aislamiento completo entre aplicaciones
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                  example: Mi Aplicación Web
+                description:
+                  type: string
+                  maxLength: 500
+                  example: Aplicación web principal para gestión de usuarios
+      responses:
+        '201':
+          description: Aplicación creada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: App created successfully
+                  app:
+                    $ref: '#/components/schemas/App'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    get:
+      tags:
+        - Apps
+      summary: Listar todas las aplicaciones
+      description: |
+        Retorna la lista completa de aplicaciones registradas en el sistema.
+        **Requiere rol:** super_admin
+      responses:
+        '200':
+          description: Lista de aplicaciones
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  apps:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/App'
+                  count:
+                    type: integer
+                    example: 5
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/v1/super-admin/apps/{id}:
+    get:
+      tags:
+        - Apps
+      summary: Obtener aplicación específica
+      description: |
+        Obtiene los detalles de una aplicación por su ID.
+        **Requiere rol:** super_admin
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID de la aplicación
+          example: 00000000-0000-0000-0000-000000000000
+      responses:
+        '200':
+          description: Detalles de la aplicación
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/App'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Aplicación no encontrada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: App not found
+
 # ===== COMPONENTS =====
 components:
   securitySchemes:
@@ -1275,6 +1729,124 @@ components:
             - type: object
               additionalProperties: true
             - type: "null"
+
+    # ===== JWKS SCHEMAS =====
+    JWKS:
+      type: object
+      description: JSON Web Key Set - Conjunto de claves públicas
+      properties:
+        keys:
+          type: array
+          description: Array de claves públicas en formato JWK
+          items:
+            $ref: '#/components/schemas/JWK'
+      example:
+        keys:
+          - kty: RSA
+            use: sig
+            kid: auth-service-key-1
+            alg: RS256
+            n: xGOr-H7A3kSPJWrH...
+            e: AQAB
+
+    JWK:
+      type: object
+      description: JSON Web Key - Clave pública en formato estándar
+      properties:
+        kty:
+          type: string
+          description: Key Type
+          example: RSA
+        use:
+          type: string
+          description: Public Key Use
+          example: sig
+        kid:
+          type: string
+          description: Key ID - Identificador único de la clave
+          example: auth-service-key-1
+        alg:
+          type: string
+          description: Algorithm
+          example: RS256
+        n:
+          type: string
+          description: Modulus (base64url encoded)
+          example: xGOr-H7A3kSPJWrH...
+        e:
+          type: string
+          description: Exponent (base64url encoded)
+          example: AQAB
+
+    # ===== APP SCHEMAS =====
+    App:
+      type: object
+      description: Aplicación en el sistema multi-tenant
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID único de la aplicación
+          example: 00000000-0000-0000-0000-000000000000
+        name:
+          type: string
+          description: Nombre de la aplicación
+          example: Mi Aplicación Web
+        client_id:
+          type: string
+          description: Client ID para OAuth/API access
+          example: app_a1b2c3d4e5f6g7h8
+        description:
+          type: string
+          description: Descripción de la aplicación
+          example: Aplicación web principal para gestión de usuarios
+        created_at:
+          type: string
+          format: date-time
+          description: Fecha de creación
+          example: 2025-01-15T10:00:00Z
+        updated_at:
+          type: string
+          format: date-time
+          description: Fecha de última actualización
+          example: 2025-01-15T10:00:00Z
+
+    # ===== SESSION SCHEMAS =====
+    Session:
+      type: object
+      description: Sesión activa del usuario con información de contexto
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID único de la sesión
+          example: 123e4567-e89b-12d3-a456-426614174000
+        user_agent:
+          anyOf:
+            - type: string
+            - type: "null"
+          description: User-Agent del navegador o aplicación
+          example: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36
+        ip_address:
+          anyOf:
+            - type: string
+            - type: "null"
+          description: Dirección IP desde donde se inició la sesión
+          example: 192.168.1.100
+        expires_at:
+          type: string
+          format: date-time
+          description: Fecha y hora de expiración de la sesión
+          example: 2025-01-22T10:00:00Z
+        created_at:
+          type: string
+          format: date-time
+          description: Fecha y hora de creación de la sesión
+          example: 2025-01-15T10:00:00Z
+        is_current:
+          type: boolean
+          description: Indica si es la sesión actual del usuario
+          example: true
 
   # ===== RESPONSES =====
   responses:

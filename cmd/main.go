@@ -128,6 +128,7 @@ func main() {
 	userHandler := handler.NewUserHandler(userService, validate)
 	roleHandler := handler.NewRoleHandler(roleService, validate)
 	passwordHandler := handler.NewPasswordHandler(authService, validate)
+	sessionHandler := handler.NewSessionHandler(sessionRepo)
 	healthHandler := handler.NewHealthHandler()
 	jwksHandler := handler.NewJWKSHandler(tokenService.GetPublicKey(), "2024-12-01")
 	setupHandler := handler.NewSetupHandler(userService, roleService, validate)
@@ -160,6 +161,7 @@ func main() {
 		userHandler,
 		roleHandler,
 		passwordHandler,
+		sessionHandler,
 		healthHandler,
 		jwksHandler,
 		setupHandler,
