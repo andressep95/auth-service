@@ -43,7 +43,7 @@ func NewTokenService(privateKeyPEM, publicKeyPEM []byte, accessExpiry, refreshEx
 	}, nil
 }
 
-func (s *TokenService) GenerateTokenPair(user *domain.User, roles []string, appID uuid.UUID) (*domain.TokenPair, error) {
+func (s *TokenService) GenerateTokenPair(user *domain.User, roles []string, appID uuid.UUID, sessionID *uuid.UUID) (*domain.TokenPair, error) {
 	now := time.Now()
 	accessExp := now.Add(s.accessExpiry)
 
@@ -59,6 +59,7 @@ func (s *TokenService) GenerateTokenPair(user *domain.User, roles []string, appI
 		Email:     user.Email,
 		Roles:     roles,
 		AppID:     appID,
+		SessionID: sessionID, // Include session ID for session tracking
 		TokenType: "access",
 	}
 

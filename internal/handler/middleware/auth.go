@@ -85,6 +85,11 @@ func AuthMiddleware(tokenService *jwt.TokenService, tokenBlacklist *blacklist.To
 		c.Locals("claims", claims)
 		c.Locals("token", token) // Store token for potential invalidation
 
+		// Store session ID if present (for session management)
+		if claims.SessionID != nil {
+			c.Locals("session_id", *claims.SessionID)
+		}
+
 		// Continue to next handler
 		return c.Next()
 	}

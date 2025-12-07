@@ -130,8 +130,11 @@ func (s *AuthService) Login(ctx context.Context, req LoginRequest) (*LoginRespon
 		return nil, err
 	}
 
-	// Generate token pair
-	tokenPair, err := s.tokenService.GenerateTokenPair(user, roles, appID)
+	// Generate session ID first
+	sessionID := uuid.New()
+
+	// Generate token pair with session ID
+	tokenPair, err := s.tokenService.GenerateTokenPair(user, roles, appID, &sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -139,9 +142,9 @@ func (s *AuthService) Login(ctx context.Context, req LoginRequest) (*LoginRespon
 	// Hash the refresh token before storing
 	hashedRefreshToken := hashToken(tokenPair.RefreshToken)
 
-	// Create session
+	// Create session with the pre-generated ID
 	session := &domain.Session{
-		ID:               uuid.New(),
+		ID:               sessionID,
 		UserID:           user.ID,
 		RefreshTokenHash: hashedRefreshToken,
 		ExpiresAt:        time.Now().Add(s.cfg.JWT.RefreshTokenExpiry),
@@ -217,8 +220,9 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*d
 		return nil, err
 	}
 
-	// Generate new token pair
-	newTokenPair, err := s.tokenService.GenerateTokenPair(user, roles, claims.AppID)
+	// Generate new token pair with existing session ID
+	sessionID := session.ID
+	newTokenPair, err := s.tokenService.GenerateTokenPair(user, roles, claims.AppID, &sessionID)
 	if err != nil {
 		return nil, err
 	}
