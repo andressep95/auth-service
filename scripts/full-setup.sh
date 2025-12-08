@@ -18,7 +18,7 @@ DEFAULT_PASSWORD="admin123."
 DEFAULT_FIRST_NAME="Admin"
 DEFAULT_LAST_NAME="User"
 API_URL="http://localhost:8080"
-APP_ID="00000000-0000-0000-0000-000000000000"
+APP_ID="7057e69d-818b-45db-b39b-9d1c84aca142"
 
 echo -e "${BLUE}╔════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║  🚀 SETUP COMPLETO AUTOMATIZADO - Auth Service            ║${NC}"

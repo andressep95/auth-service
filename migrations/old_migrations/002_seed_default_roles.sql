@@ -4,7 +4,7 @@
 -- Crear app base del sistema (para usuarios normales)
 INSERT INTO apps (id, name, client_id, client_secret_hash, redirect_uris, allowed_scopes, created_at, updated_at)
 VALUES (
-    '00000000-0000-0000-0000-000000000000',
+    '7057e69d-818b-45db-b39b-9d1c84aca142',
     'Auth Service - Base App',
     'auth-service-base',
     -- Hash de un secret básico (cambiar en producción)
@@ -47,7 +47,7 @@ ON CONFLICT (resource, action) DO NOTHING;
 INSERT INTO roles (id, app_id, name, description, created_at, updated_at) VALUES
     (
         '20000000-0000-0000-0000-000000000001',
-        '00000000-0000-0000-0000-000000000000',
+        '7057e69d-818b-45db-b39b-9d1c84aca142',
         'user',
         'Usuario estándar con permisos básicos',
         NOW(),
@@ -55,7 +55,7 @@ INSERT INTO roles (id, app_id, name, description, created_at, updated_at) VALUES
     ),
     (
         '20000000-0000-0000-0000-000000000002',
-        '00000000-0000-0000-0000-000000000000',
+        '7057e69d-818b-45db-b39b-9d1c84aca142',
         'admin',
         'Administrador con acceso completo al sistema',
         NOW(),
@@ -63,7 +63,7 @@ INSERT INTO roles (id, app_id, name, description, created_at, updated_at) VALUES
     ),
     (
         '20000000-0000-0000-0000-000000000003',
-        '00000000-0000-0000-0000-000000000000',
+        '7057e69d-818b-45db-b39b-9d1c84aca142',
         'moderator',
         'Moderador con permisos limitados de administración',
         NOW(),
@@ -115,7 +115,7 @@ COMMENT ON TABLE user_roles IS 'Asignación de roles a usuarios por aplicación'
 CREATE OR REPLACE FUNCTION assign_default_role()
 RETURNS TRIGGER AS $$
 DECLARE
-    base_app_id UUID := '00000000-0000-0000-0000-000000000000';
+    base_app_id UUID := '7057e69d-818b-45db-b39b-9d1c84aca142';
     user_role_id UUID := '20000000-0000-0000-0000-000000000001';
 BEGIN
     -- Auto-asignar rol 'user' a nuevos usuarios

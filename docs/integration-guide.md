@@ -3,6 +3,7 @@
 ## 🎯 ¿Qué es este servicio?
 
 Este es un **Identity Provider (IdP)** centralizado que gestiona:
+
 - Autenticación (quién eres)
 - Autorización (qué puedes hacer)
 - Sesiones de usuario
@@ -60,23 +61,23 @@ Este es un **Identity Provider (IdP)** centralizado que gestiona:
 ```javascript
 // FRONTEND: Login del usuario
 async function login(email, password) {
-  const response = await fetch('http://auth-service:8080/api/v1/auth/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  const response = await fetch("http://auth-service:8080/api/v1/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       email: email,
       password: password,
-      app_id: '00000000-0000-0000-0000-000000000000' // Tu app ID
-    })
+      app_id: "7057e69d-818b-45db-b39b-9d1c84aca142", // Tu app ID
+    }),
   });
 
   const data = await response.json();
-  
+
   // Guardar tokens
-  localStorage.setItem('access_token', data.tokens.access_token);
-  localStorage.setItem('refresh_token', data.tokens.refresh_token);
-  localStorage.setItem('user', JSON.stringify(data.user));
-  
+  localStorage.setItem("access_token", data.tokens.access_token);
+  localStorage.setItem("refresh_token", data.tokens.refresh_token);
+  localStorage.setItem("user", JSON.stringify(data.user));
+
   return data;
 }
 ```
@@ -86,14 +87,14 @@ async function login(email, password) {
 ```javascript
 // FRONTEND: Request a tu backend con el token
 async function getProducts() {
-  const token = localStorage.getItem('access_token');
-  
-  const response = await fetch('http://backend-api:3000/api/products', {
+  const token = localStorage.getItem("access_token");
+
+  const response = await fetch("http://backend-api:3000/api/products", {
     headers: {
-      'Authorization': `Bearer ${token}`
-    }
+      Authorization: `Bearer ${token}`,
+    },
   });
-  
+
   return response.json();
 }
 ```
@@ -110,17 +111,17 @@ const publicKey = fs.readFileSync('./auth-service-public.pem');
 
 function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
-  
+
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'No token provided' });
   }
-  
+
   const token = authHeader.substring(7);
-  
+
   try {
     // Validar token con la clave pública
     const decoded = jwt.verify(token, publicKey, { algorithms: ['RS256'] });
-    
+
     // Token válido, extraer información
     req.user = {
       id: decoded.uid,
@@ -128,7 +129,7 @@ function authMiddleware(req, res, next) {
       roles: decoded.roles || [],
       permissions: decoded.permissions || []
     };
-    
+
     next();
   } catch (error) {
     return res.status(401).json({ error: 'Invalid token' });
@@ -140,7 +141,7 @@ app.get('/api/products', authMiddleware, (req, res) => {
   // req.user contiene la info del usuario
   console.log('User ID:', req.user.id);
   console.log('Roles:', req.user.roles);
-  
+
   // Tu lógica de negocio
   res.json({ products: [...] });
 });
@@ -153,27 +154,28 @@ app.get('/api/products', authMiddleware, (req, res) => {
 function requireRole(...allowedRoles) {
   return (req, res, next) => {
     const userRoles = req.user.roles || [];
-    
-    const hasRole = allowedRoles.some(role => userRoles.includes(role));
-    
+
+    const hasRole = allowedRoles.some((role) => userRoles.includes(role));
+
     if (!hasRole) {
-      return res.status(403).json({ 
-        error: 'Forbidden',
-        required_roles: allowedRoles 
+      return res.status(403).json({
+        error: "Forbidden",
+        required_roles: allowedRoles,
       });
     }
-    
+
     next();
   };
 }
 
 // Usar en rutas protegidas
-app.delete('/api/products/:id', 
-  authMiddleware,           // Primero valida token
-  requireRole('admin'),     // Luego verifica rol
+app.delete(
+  "/api/products/:id",
+  authMiddleware, // Primero valida token
+  requireRole("admin"), // Luego verifica rol
   (req, res) => {
     // Solo admins llegan aquí
-    res.json({ message: 'Product deleted' });
+    res.json({ message: "Product deleted" });
   }
 );
 ```
@@ -183,41 +185,41 @@ app.delete('/api/products/:id',
 ```javascript
 // FRONTEND: Renovar access token cuando expira
 async function refreshAccessToken() {
-  const refreshToken = localStorage.getItem('refresh_token');
-  
-  const response = await fetch('http://auth-service:8080/api/v1/auth/refresh', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refresh_token: refreshToken })
+  const refreshToken = localStorage.getItem("refresh_token");
+
+  const response = await fetch("http://auth-service:8080/api/v1/auth/refresh", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: refreshToken }),
   });
-  
+
   const data = await response.json();
-  
+
   // Actualizar tokens
-  localStorage.setItem('access_token', data.access_token);
-  localStorage.setItem('refresh_token', data.refresh_token);
-  
+  localStorage.setItem("access_token", data.access_token);
+  localStorage.setItem("refresh_token", data.refresh_token);
+
   return data.access_token;
 }
 
 // Interceptor para renovar automáticamente
 async function fetchWithAuth(url, options = {}) {
-  let token = localStorage.getItem('access_token');
-  
+  let token = localStorage.getItem("access_token");
+
   options.headers = {
     ...options.headers,
-    'Authorization': `Bearer ${token}`
+    Authorization: `Bearer ${token}`,
   };
-  
+
   let response = await fetch(url, options);
-  
+
   // Si token expiró, renovar y reintentar
   if (response.status === 401) {
     token = await refreshAccessToken();
     options.headers.Authorization = `Bearer ${token}`;
     response = await fetch(url, options);
   }
-  
+
   return response;
 }
 ```
@@ -239,7 +241,7 @@ cp keys/public.pem /path/to/backend/auth-service-public.pem
 
 ```javascript
 // Backend obtiene clave pública vía HTTP
-const response = await fetch('http://auth-service:8080/.well-known/jwks.json');
+const response = await fetch("http://auth-service:8080/.well-known/jwks.json");
 const jwks = await response.json();
 // Usar librería como node-jwks-rsa
 ```
@@ -297,6 +299,7 @@ Backend API:  https://api.tudominio.com
 ```
 
 **CORS en Auth Service (.env):**
+
 ```bash
 CORS_ALLOWED_ORIGINS=https://app.tudominio.com,http://localhost:3000
 ```
@@ -318,12 +321,13 @@ Cuando validas el token en tu backend, obtienes:
   "email": "user@example.com",
   "roles": ["user", "admin"],
   "permissions": ["users:read:own", "users:update:own"],
-  "app_id": "00000000-0000-0000-0000-000000000000",
+  "app_id": "7057e69d-818b-45db-b39b-9d1c84aca142",
   "type": "access"
 }
 ```
 
 **Campos importantes:**
+
 - `uid`: ID del usuario (úsalo como foreign key)
 - `email`: Email del usuario
 - `roles`: Array de roles
@@ -338,55 +342,55 @@ Cuando validas el token en tu backend, obtienes:
 
 ```jsx
 // src/services/auth.js
-const AUTH_API = 'http://localhost:8080/api/v1';
-const APP_ID = '00000000-0000-0000-0000-000000000000';
+const AUTH_API = "http://localhost:8080/api/v1";
+const APP_ID = "7057e69d-818b-45db-b39b-9d1c84aca142";
 
 export const authService = {
   async login(email, password) {
     const response = await fetch(`${AUTH_API}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, app_id: APP_ID })
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, app_id: APP_ID }),
     });
-    
-    if (!response.ok) throw new Error('Login failed');
-    
+
+    if (!response.ok) throw new Error("Login failed");
+
     const data = await response.json();
-    localStorage.setItem('access_token', data.tokens.access_token);
-    localStorage.setItem('refresh_token', data.tokens.refresh_token);
-    
+    localStorage.setItem("access_token", data.tokens.access_token);
+    localStorage.setItem("refresh_token", data.tokens.refresh_token);
+
     return data;
   },
-  
+
   logout() {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
   },
-  
+
   getToken() {
-    return localStorage.getItem('access_token');
-  }
+    return localStorage.getItem("access_token");
+  },
 };
 
 // src/services/api.js
-import { authService } from './auth';
+import { authService } from "./auth";
 
 export async function apiRequest(url, options = {}) {
   const token = authService.getToken();
-  
+
   const response = await fetch(url, {
     ...options,
     headers: {
       ...options.headers,
-      'Authorization': `Bearer ${token}`
-    }
+      Authorization: `Bearer ${token}`,
+    },
   });
-  
+
   if (response.status === 401) {
     authService.logout();
-    window.location.href = '/login';
+    window.location.href = "/login";
   }
-  
+
   return response.json();
 }
 ```
@@ -395,31 +399,31 @@ export async function apiRequest(url, options = {}) {
 
 ```javascript
 // middleware/auth.js
-const jwt = require('jsonwebtoken');
-const fs = require('fs');
+const jwt = require("jsonwebtoken");
+const fs = require("fs");
 
-const publicKey = fs.readFileSync('./auth-service-public.pem');
+const publicKey = fs.readFileSync("./auth-service-public.pem");
 
 function authenticate(req, res, next) {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  
+  const token = req.headers.authorization?.replace("Bearer ", "");
+
   if (!token) {
-    return res.status(401).json({ error: 'No token' });
+    return res.status(401).json({ error: "No token" });
   }
-  
+
   try {
-    const decoded = jwt.verify(token, publicKey, { algorithms: ['RS256'] });
+    const decoded = jwt.verify(token, publicKey, { algorithms: ["RS256"] });
     req.user = decoded;
     next();
   } catch (error) {
-    res.status(401).json({ error: 'Invalid token' });
+    res.status(401).json({ error: "Invalid token" });
   }
 }
 
 function authorize(...roles) {
   return (req, res, next) => {
-    if (!roles.some(role => req.user.roles?.includes(role))) {
-      return res.status(403).json({ error: 'Forbidden' });
+    if (!roles.some((role) => req.user.roles?.includes(role))) {
+      return res.status(403).json({ error: "Forbidden" });
     }
     next();
   };
@@ -428,19 +432,19 @@ function authorize(...roles) {
 module.exports = { authenticate, authorize };
 
 // routes/products.js
-const express = require('express');
-const { authenticate, authorize } = require('../middleware/auth');
+const express = require("express");
+const { authenticate, authorize } = require("../middleware/auth");
 
 const router = express.Router();
 
-router.get('/', authenticate, (req, res) => {
+router.get("/", authenticate, (req, res) => {
   // Todos los usuarios autenticados
   res.json({ products: [] });
 });
 
-router.post('/', authenticate, authorize('admin'), (req, res) => {
+router.post("/", authenticate, authorize("admin"), (req, res) => {
   // Solo admins
-  res.json({ message: 'Product created' });
+  res.json({ message: "Product created" });
 });
 
 module.exports = router;
@@ -453,7 +457,7 @@ module.exports = router;
 ### Docker Compose (Todos los servicios)
 
 ```yaml
-version: '3.8'
+version: "3.8"
 
 services:
   auth-service:
@@ -529,11 +533,12 @@ CREATE TABLE orders (
 ### ¿Cómo sincronizo usuarios entre servicios?
 
 **Opción 1:** Crear usuario en tu DB cuando haces el primer request
+
 ```javascript
-app.post('/api/orders', authenticate, async (req, res) => {
+app.post("/api/orders", authenticate, async (req, res) => {
   // Asegurar que el usuario existe en tu DB
   await ensureUserExists(req.user.id, req.user.email);
-  
+
   // Crear orden
   const order = await createOrder(req.user.id, req.body);
   res.json(order);
@@ -541,12 +546,14 @@ app.post('/api/orders', authenticate, async (req, res) => {
 ```
 
 **Opción 2:** Event-driven (futuro)
+
 - Auth Service publica evento "UserCreated"
 - Tus servicios escuchan y crean usuario local
 
 ### ¿Qué pasa si cambio la clave RSA?
 
 Todos los tokens existentes se invalidan. Planifica rotación de claves:
+
 1. Genera nueva clave
 2. Publica ambas claves públicas (vieja + nueva)
 3. Backends validan con ambas

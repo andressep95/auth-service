@@ -157,7 +157,7 @@ func (s *RoleService) HasPermission(ctx context.Context, userID uuid.UUID, resou
 // HasRole checks if a user has a specific role
 func (s *RoleService) HasRole(ctx context.Context, userID uuid.UUID, roleName string) (bool, error) {
 	// Get base app ID - using system default app
-	baseAppID, err := uuid.Parse("00000000-0000-0000-0000-000000000000")
+	baseAppID, err := uuid.Parse("7057e69d-818b-45db-b39b-9d1c84aca142")
 	if err != nil {
 		return false, err
 	}

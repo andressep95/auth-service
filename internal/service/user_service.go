@@ -9,12 +9,12 @@ import (
 	"log"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/andressep95/auth-service/internal/config"
 	"github.com/andressep95/auth-service/internal/domain"
 	"github.com/andressep95/auth-service/internal/repository"
 	"github.com/andressep95/auth-service/pkg/email"
 	"github.com/andressep95/auth-service/pkg/hash"
+	"github.com/google/uuid"
 )
 
 type UserService struct {
@@ -55,8 +55,8 @@ func (s *UserService) Register(ctx context.Context, req RegisterRequest) (*domai
 	var err error
 
 	if req.AppID == "" {
-		// Use base app (00000000-0000-0000-0000-000000000000)
-		appID = uuid.MustParse("00000000-0000-0000-0000-000000000000")
+		// Use base app (7057e69d-818b-45db-b39b-9d1c84aca142)
+		appID = uuid.MustParse("7057e69d-818b-45db-b39b-9d1c84aca142")
 		log.Printf("[USER_SERVICE] No app_id provided, using base app: %s", appID)
 	} else {
 		appID, err = uuid.Parse(req.AppID)

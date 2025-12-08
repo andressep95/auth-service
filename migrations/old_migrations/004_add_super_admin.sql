@@ -5,7 +5,7 @@
 INSERT INTO roles (id, app_id, name, description, created_at)
 VALUES (
     '10000000-0000-0000-0000-000000000001',
-    '00000000-0000-0000-0000-000000000000',
+    '7057e69d-818b-45db-b39b-9d1c84aca142',
     'super_admin',
     'Super administrador con acceso global a todas las aplicaciones',
     NOW()
@@ -15,22 +15,22 @@ VALUES (
 INSERT INTO permissions (id, app_id, resource, action, description, created_at)
 VALUES
     -- App management
-    (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'apps', 'create', 'Crear nuevas aplicaciones', NOW()),
-    (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'apps', 'read:all', 'Ver todas las aplicaciones', NOW()),
-    (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'apps', 'update:all', 'Actualizar cualquier aplicación', NOW()),
-    (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'apps', 'delete:all', 'Eliminar cualquier aplicación', NOW()),
+    (gen_random_uuid(), '7057e69d-818b-45db-b39b-9d1c84aca142', 'apps', 'create', 'Crear nuevas aplicaciones', NOW()),
+    (gen_random_uuid(), '7057e69d-818b-45db-b39b-9d1c84aca142', 'apps', 'read:all', 'Ver todas las aplicaciones', NOW()),
+    (gen_random_uuid(), '7057e69d-818b-45db-b39b-9d1c84aca142', 'apps', 'update:all', 'Actualizar cualquier aplicación', NOW()),
+    (gen_random_uuid(), '7057e69d-818b-45db-b39b-9d1c84aca142', 'apps', 'delete:all', 'Eliminar cualquier aplicación', NOW()),
     
     -- Global user management
-    (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'users', 'read:all', 'Ver todos los usuarios de todas las apps', NOW()),
-    (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'users', 'update:all', 'Actualizar cualquier usuario', NOW()),
-    (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'users', 'delete:all', 'Eliminar cualquier usuario', NOW()),
+    (gen_random_uuid(), '7057e69d-818b-45db-b39b-9d1c84aca142', 'users', 'read:all', 'Ver todos los usuarios de todas las apps', NOW()),
+    (gen_random_uuid(), '7057e69d-818b-45db-b39b-9d1c84aca142', 'users', 'update:all', 'Actualizar cualquier usuario', NOW()),
+    (gen_random_uuid(), '7057e69d-818b-45db-b39b-9d1c84aca142', 'users', 'delete:all', 'Eliminar cualquier usuario', NOW()),
     
     -- Global role management
-    (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'roles', 'create:all', 'Crear roles en cualquier app', NOW()),
-    (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'roles', 'read:all', 'Ver roles de todas las apps', NOW()),
-    (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'roles', 'update:all', 'Actualizar roles de cualquier app', NOW()),
-    (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'roles', 'delete:all', 'Eliminar roles de cualquier app', NOW()),
-    (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'roles', 'assign:all', 'Asignar roles a cualquier usuario', NOW())
+    (gen_random_uuid(), '7057e69d-818b-45db-b39b-9d1c84aca142', 'roles', 'create:all', 'Crear roles en cualquier app', NOW()),
+    (gen_random_uuid(), '7057e69d-818b-45db-b39b-9d1c84aca142', 'roles', 'read:all', 'Ver roles de todas las apps', NOW()),
+    (gen_random_uuid(), '7057e69d-818b-45db-b39b-9d1c84aca142', 'roles', 'update:all', 'Actualizar roles de cualquier app', NOW()),
+    (gen_random_uuid(), '7057e69d-818b-45db-b39b-9d1c84aca142', 'roles', 'delete:all', 'Eliminar roles de cualquier app', NOW()),
+    (gen_random_uuid(), '7057e69d-818b-45db-b39b-9d1c84aca142', 'roles', 'assign:all', 'Asignar roles a cualquier usuario', NOW())
 ON CONFLICT DO NOTHING;
 
 -- Assign all super_admin permissions to super_admin role
@@ -39,7 +39,7 @@ SELECT
     '10000000-0000-0000-0000-000000000001',
     id
 FROM permissions
-WHERE app_id = '00000000-0000-0000-0000-000000000000'
+WHERE app_id = '7057e69d-818b-45db-b39b-9d1c84aca142'
   AND (
     resource = 'apps' OR
     (resource = 'users' AND action LIKE '%:all') OR

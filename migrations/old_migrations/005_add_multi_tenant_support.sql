@@ -12,9 +12,9 @@ ALTER TABLE users
 ADD COLUMN app_id UUID REFERENCES apps(id) ON DELETE CASCADE;
 
 -- Step 2: Migrate existing users to base app
--- All existing users belong to the base app (00000000-0000-0000-0000-000000000000)
+-- All existing users belong to the base app (7057e69d-818b-45db-b39b-9d1c84aca142)
 UPDATE users
-SET app_id = '00000000-0000-0000-0000-000000000000'
+SET app_id = '7057e69d-818b-45db-b39b-9d1c84aca142'
 WHERE app_id IS NULL;
 
 -- Step 3: Make app_id NOT NULL now that all rows have values
@@ -100,7 +100,7 @@ ADD COLUMN app_id UUID REFERENCES apps(id) ON DELETE CASCADE;
 
 -- Step 13: Migrate existing sessions to base app
 UPDATE sessions
-SET app_id = '00000000-0000-0000-0000-000000000000'
+SET app_id = '7057e69d-818b-45db-b39b-9d1c84aca142'
 WHERE app_id IS NULL;
 
 -- Step 14: Make app_id NOT NULL

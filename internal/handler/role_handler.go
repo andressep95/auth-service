@@ -1,10 +1,10 @@
 package handler
 
 import (
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
 	"github.com/andressep95/auth-service/internal/service"
 	"github.com/andressep95/auth-service/pkg/validator"
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 )
 
 type RoleHandler struct {
@@ -63,7 +63,7 @@ func (h *RoleHandler) GetRoles(c *fiber.Ctx) error {
 	appIDStr := c.Query("app_id")
 	if appIDStr == "" {
 		// Default to base app
-		appIDStr = "00000000-0000-0000-0000-000000000000"
+		appIDStr = "7057e69d-818b-45db-b39b-9d1c84aca142"
 	}
 
 	appID, err := uuid.Parse(appIDStr)
@@ -256,7 +256,7 @@ func (h *RoleHandler) GetUserRoles(c *fiber.Ctx) error {
 	}
 
 	// Default to base app
-	appID := uuid.MustParse("00000000-0000-0000-0000-000000000000")
+	appID := uuid.MustParse("7057e69d-818b-45db-b39b-9d1c84aca142")
 
 	roles, err := h.roleService.GetUserRoles(c.Context(), userID, appID)
 	if err != nil {
@@ -277,7 +277,7 @@ func (h *RoleHandler) GetMyRoles(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(uuid.UUID)
 
 	// Default to base app
-	appID := uuid.MustParse("00000000-0000-0000-0000-000000000000")
+	appID := uuid.MustParse("7057e69d-818b-45db-b39b-9d1c84aca142")
 
 	roles, err := h.roleService.GetUserRoles(c.Context(), userID, appID)
 	if err != nil {
@@ -321,7 +321,7 @@ func (h *RoleHandler) GetMyPermissions(c *fiber.Ctx) error {
 	userID := c.Locals("user_id").(uuid.UUID)
 
 	// Default to base app
-	appID := uuid.MustParse("00000000-0000-0000-0000-000000000000")
+	appID := uuid.MustParse("7057e69d-818b-45db-b39b-9d1c84aca142")
 
 	permissions, err := h.roleService.GetUserPermissions(c.Context(), userID, appID)
 	if err != nil {

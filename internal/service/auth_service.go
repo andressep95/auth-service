@@ -8,13 +8,13 @@ import (
 	"log"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/andressep95/auth-service/internal/config"
 	"github.com/andressep95/auth-service/internal/domain"
 	"github.com/andressep95/auth-service/internal/repository"
 	"github.com/andressep95/auth-service/pkg/blacklist"
 	"github.com/andressep95/auth-service/pkg/hash"
 	"github.com/andressep95/auth-service/pkg/jwt"
+	"github.com/google/uuid"
 )
 
 // Custom errors
@@ -72,8 +72,8 @@ func (s *AuthService) Login(ctx context.Context, req LoginRequest) (*LoginRespon
 	var err error
 
 	if req.AppID == "" {
-		// Use base app (00000000-0000-0000-0000-000000000000)
-		appID = uuid.MustParse("00000000-0000-0000-0000-000000000000")
+		// Use base app (7057e69d-818b-45db-b39b-9d1c84aca142)
+		appID = uuid.MustParse("7057e69d-818b-45db-b39b-9d1c84aca142")
 		log.Printf("[AUTH_SERVICE] No app_id provided, using base app: %s", appID)
 	} else {
 		appID, err = uuid.Parse(req.AppID)

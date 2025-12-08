@@ -943,7 +943,7 @@ paths:
             type: string
             format: uuid
           description: UUID de la aplicación
-          example: 00000000-0000-0000-0000-000000000000
+          example: 7057e69d-818b-45db-b39b-9d1c84aca142
       responses:
         '200':
           description: Lista de roles
@@ -1447,7 +1447,7 @@ paths:
             type: string
             format: uuid
           description: UUID de la aplicación
-          example: 00000000-0000-0000-0000-000000000000
+          example: 7057e69d-818b-45db-b39b-9d1c84aca142
       responses:
         '200':
           description: Detalles de la aplicación
@@ -1522,7 +1522,7 @@ components:
           type: string
           format: uuid
           description: UUID de la aplicación donde se registra el usuario
-          example: 00000000-0000-0000-0000-000000000000
+          example: 7057e69d-818b-45db-b39b-9d1c84aca142
         email:
           type: string
           format: email
@@ -1574,7 +1574,7 @@ components:
           type: string
           format: uuid
           description: UUID de la aplicación que solicita el login
-          example: 00000000-0000-0000-0000-000000000000
+          example: 7057e69d-818b-45db-b39b-9d1c84aca142
 
     CreateRoleRequest:
       type: object
@@ -1586,7 +1586,7 @@ components:
         app_id:
           type: string
           format: uuid
-          example: 00000000-0000-0000-0000-000000000000
+          example: 7057e69d-818b-45db-b39b-9d1c84aca142
         name:
           type: string
           minLength: 1
@@ -1611,7 +1611,7 @@ components:
           type: string
           format: uuid
           description: UUID de la aplicación a la que pertenece el usuario
-          example: 00000000-0000-0000-0000-000000000000
+          example: 7057e69d-818b-45db-b39b-9d1c84aca142
         email:
           type: string
           format: email
@@ -1693,7 +1693,7 @@ components:
         app_id:
           type: string
           format: uuid
-          example: 00000000-0000-0000-0000-000000000000
+          example: 7057e69d-818b-45db-b39b-9d1c84aca142
         name:
           type: string
           example: user
@@ -1715,7 +1715,7 @@ components:
         app_id:
           type: string
           format: uuid
-          example: 00000000-0000-0000-0000-000000000000
+          example: 7057e69d-818b-45db-b39b-9d1c84aca142
         resource:
           type: string
           description: Recurso sobre el que se aplica el permiso
@@ -1828,7 +1828,7 @@ components:
           type: string
           format: uuid
           description: ID único de la aplicación
-          example: 00000000-0000-0000-0000-000000000000
+          example: 7057e69d-818b-45db-b39b-9d1c84aca142
         name:
           type: string
           description: Nombre de la aplicación

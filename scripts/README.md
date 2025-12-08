@@ -7,6 +7,7 @@
 **Propósito:** Inicializa todo el sistema desde cero con un solo comando.
 
 **Uso:**
+
 ```bash
 # Opción 1: Con credenciales por defecto
 make quickstart
@@ -19,6 +20,7 @@ make quickstart-custom
 ```
 
 **Qué hace:**
+
 1. ✅ Verifica dependencias (Docker, Docker Compose, OpenSSL)
 2. ✅ Limpia recursos previos
 3. ✅ Genera claves RSA para JWT
@@ -32,6 +34,7 @@ make quickstart-custom
 11. ✅ Muestra resumen del sistema
 
 **Cuándo usar:**
+
 - Primera vez que configuras el proyecto
 - Después de clonar el repositorio
 - Para resetear el sistema completamente
@@ -41,6 +44,7 @@ make quickstart-custom
 ## 🚀 Flujo Recomendado
 
 ### Primera Vez (Setup Inicial)
+
 ```bash
 # Opción 1: Automático con credenciales por defecto
 make quickstart
@@ -50,6 +54,7 @@ make quickstart-custom
 ```
 
 ### Crear Admin Adicional
+
 ```bash
 # Usar el endpoint de la API (requiere ser admin)
 curl -X POST "http://localhost:8080/api/v1/admin/users/{userId}/roles/{adminRoleId}" \
@@ -62,6 +67,7 @@ VALUES ('user-uuid', '20000000-0000-0000-0000-000000000002', NOW());
 ```
 
 ### Generar Solo Claves RSA
+
 ```bash
 # Si solo necesitas regenerar las claves
 make keys
@@ -88,10 +94,11 @@ Ambos scripts crean este archivo automáticamente:
 ADMIN_EMAIL="admin@test.com"
 ADMIN_PASSWORD="Admin123!"
 API_URL="http://localhost:8080"
-APP_ID="00000000-0000-0000-0000-000000000000"
+APP_ID="7057e69d-818b-45db-b39b-9d1c84aca142"
 ```
 
 **Uso:**
+
 ```bash
 # Cargar credenciales en tu terminal
 source .admin-credentials
@@ -112,6 +119,7 @@ curl -X POST $API_URL/api/v1/auth/login \
 ## 🔧 Troubleshooting
 
 ### "Docker no está instalado"
+
 ```bash
 # macOS
 brew install docker docker-compose
@@ -121,6 +129,7 @@ sudo apt-get install docker.io docker-compose
 ```
 
 ### "Error compilando aplicación"
+
 ```bash
 # Verificar versión de Go
 go version  # Debe ser 1.24+
@@ -132,6 +141,7 @@ go build -o bin/auth-service cmd/main.go
 ```
 
 ### "Timeout esperando PostgreSQL"
+
 ```bash
 # Ver logs de PostgreSQL
 docker-compose logs postgres
@@ -141,6 +151,7 @@ docker-compose restart postgres
 ```
 
 ### "Usuario ya existe"
+
 ```bash
 # El script detecta esto automáticamente y usa el usuario existente
 # Si quieres empezar de cero:

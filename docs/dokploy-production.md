@@ -505,7 +505,7 @@ export async function apiRequest(endpoint, options = {}) {
 ```bash
 REACT_APP_AUTH_URL=https://auth.tudominio.com
 REACT_APP_API_URL=https://api.tudominio.com
-REACT_APP_APP_ID=00000000-0000-0000-0000-000000000000
+REACT_APP_APP_ID=7057e69d-818b-45db-b39b-9d1c84aca142
 ```
 
 3. **Dominio**
@@ -533,7 +533,7 @@ curl -X POST https://auth.tudominio.com/api/v1/auth/login \
   -d '{
     "email": "admin@test.com",
     "password": "Admin123!",
-    "app_id": "00000000-0000-0000-0000-000000000000"
+    "app_id": "7057e69d-818b-45db-b39b-9d1c84aca142"
   }'
 ```
 

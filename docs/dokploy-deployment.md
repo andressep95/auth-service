@@ -101,6 +101,7 @@ EMAIL_RESET_URL=https://app.tudominio.com/reset-password
 **Opción 1: Volumen Persistente (Recomendado)**
 
 En Dokploy, agregar volumen:
+
 ```
 /app/keys → Volumen persistente
 ```
@@ -151,8 +152,8 @@ DATABASE_URL=postgresql://user:pass@host:5432/dbname
 
 ```javascript
 // middleware/auth.js
-const jwksClient = require('jwks-rsa');
-const jwt = require('jsonwebtoken');
+const jwksClient = require("jwks-rsa");
+const jwt = require("jsonwebtoken");
 
 // Cliente JWKS - obtiene claves automáticamente del Auth Service
 const client = jwksClient({
@@ -160,7 +161,7 @@ const client = jwksClient({
   cache: true,
   cacheMaxAge: 600000, // 10 minutos
   rateLimit: true,
-  jwksRequestsPerMinute: 10
+  jwksRequestsPerMinute: 10,
 });
 
 function getKey(header, callback) {
@@ -171,23 +172,23 @@ function getKey(header, callback) {
 }
 
 function authenticate(req, res, next) {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  
+  const token = req.headers.authorization?.replace("Bearer ", "");
+
   if (!token) {
-    return res.status(401).json({ error: 'No token provided' });
+    return res.status(401).json({ error: "No token provided" });
   }
-  
-  jwt.verify(token, getKey, { algorithms: ['RS256'] }, (err, decoded) => {
+
+  jwt.verify(token, getKey, { algorithms: ["RS256"] }, (err, decoded) => {
     if (err) {
-      return res.status(401).json({ error: 'Invalid token' });
+      return res.status(401).json({ error: "Invalid token" });
     }
-    
+
     req.user = {
       id: decoded.uid,
       email: decoded.email,
-      roles: decoded.roles || []
+      roles: decoded.roles || [],
     };
-    
+
     next();
   });
 }
@@ -195,18 +196,18 @@ function authenticate(req, res, next) {
 module.exports = { authenticate };
 
 // server.js
-const express = require('express');
-const { authenticate } = require('./middleware/auth');
+const express = require("express");
+const { authenticate } = require("./middleware/auth");
 
 const app = express();
 
-app.get('/api/products', authenticate, (req, res) => {
+app.get("/api/products", authenticate, (req, res) => {
   // req.user contiene la info del token
-  console.log('User:', req.user.id, req.user.email);
+  console.log("User:", req.user.id, req.user.email);
   res.json({ products: [] });
 });
 
-app.listen(4000, () => console.log('Server running on port 4000'));
+app.listen(4000, () => console.log("Server running on port 4000"));
 ```
 
 ### package.json
@@ -248,7 +249,7 @@ CMD ["nginx", "-g", "daemon off;"]
 ```bash
 REACT_APP_AUTH_URL=https://auth.tudominio.com
 REACT_APP_API_URL=https://api.tudominio.com
-REACT_APP_APP_ID=00000000-0000-0000-0000-000000000000
+REACT_APP_APP_ID=7057e69d-818b-45db-b39b-9d1c84aca142
 ```
 
 ### Código del Frontend
@@ -260,61 +261,61 @@ const APP_ID = process.env.REACT_APP_APP_ID;
 
 export async function login(email, password) {
   const response = await fetch(`${AUTH_API}/api/v1/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password, app_id: APP_ID })
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password, app_id: APP_ID }),
   });
-  
-  if (!response.ok) throw new Error('Login failed');
-  
+
+  if (!response.ok) throw new Error("Login failed");
+
   const data = await response.json();
-  
-  localStorage.setItem('access_token', data.tokens.access_token);
-  localStorage.setItem('refresh_token', data.tokens.refresh_token);
-  
+
+  localStorage.setItem("access_token", data.tokens.access_token);
+  localStorage.setItem("refresh_token", data.tokens.refresh_token);
+
   return data;
 }
 
 export function logout() {
-  localStorage.removeItem('access_token');
-  localStorage.removeItem('refresh_token');
+  localStorage.removeItem("access_token");
+  localStorage.removeItem("refresh_token");
 }
 
 export function getToken() {
-  return localStorage.getItem('access_token');
+  return localStorage.getItem("access_token");
 }
 
 // src/services/api.js
-import { getToken, logout } from './auth';
+import { getToken, logout } from "./auth";
 
 const API_URL = process.env.REACT_APP_API_URL;
 
 export async function apiRequest(endpoint, options = {}) {
   const token = getToken();
-  
+
   const response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
     headers: {
       ...options.headers,
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    }
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
   });
-  
+
   if (response.status === 401) {
     logout();
-    window.location.href = '/login';
-    throw new Error('Unauthorized');
+    window.location.href = "/login";
+    throw new Error("Unauthorized");
   }
-  
+
   return response.json();
 }
 
 // Ejemplo de uso
-import { apiRequest } from './services/api';
+import { apiRequest } from "./services/api";
 
 async function getProducts() {
-  const data = await apiRequest('/api/products');
+  const data = await apiRequest("/api/products");
   return data.products;
 }
 ```
@@ -353,7 +354,7 @@ curl -X POST https://auth.tudominio.com/api/v1/auth/login \
   -d '{
     "email": "admin@test.com",
     "password": "Admin123!",
-    "app_id": "00000000-0000-0000-0000-000000000000"
+    "app_id": "7057e69d-818b-45db-b39b-9d1c84aca142"
   }'
 
 # Guarda el access_token de la respuesta
@@ -407,7 +408,7 @@ type KeyRotationService struct {
 
 func (s *KeyRotationService) StartAutoRotation() {
     ticker := time.NewTicker(s.rotationPeriod)
-    
+
     go func() {
         for range ticker.C {
             s.rotateKeys()
@@ -421,29 +422,29 @@ func (s *KeyRotationService) rotateKeys() error {
     if err != nil {
         return err
     }
-    
+
     // Guardar clave privada
     privateFile, _ := os.Create(s.privateKeyPath)
     defer privateFile.Close()
-    
+
     pem.Encode(privateFile, &pem.Block{
         Type:  "RSA PRIVATE KEY",
         Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
     })
-    
+
     // Guardar clave pública
     publicFile, _ := os.Create(s.publicKeyPath)
     defer publicFile.Close()
-    
+
     publicBytes, _ := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
     pem.Encode(publicFile, &pem.Block{
         Type:  "PUBLIC KEY",
         Bytes: publicBytes,
     })
-    
+
     // Recargar TokenService con nuevas claves
     // (implementar lógica de recarga)
-    
+
     return nil
 }
 ```

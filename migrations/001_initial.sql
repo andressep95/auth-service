@@ -24,11 +24,11 @@ CREATE TABLE IF NOT EXISTS apps (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Create base app (00000000-0000-0000-0000-000000000000)
+-- Create base app (7057e69d-818b-45db-b39b-9d1c84aca142)
 -- This is the default app for the auth service itself
 INSERT INTO apps (id, name, client_id, client_secret_hash, description)
 VALUES (
-    '00000000-0000-0000-0000-000000000000',
+    '7057e69d-818b-45db-b39b-9d1c84aca142',
     'Auth Service',
     'auth-service',
     'placeholder',
@@ -224,10 +224,10 @@ COMMENT ON COLUMN audit_logs.app_id IS 'Application context where the event occu
 
 -- Insert default roles for the base app
 INSERT INTO roles (id, app_id, name, description, created_at, updated_at) VALUES
-    ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 'super_admin', 'Super administrador con acceso global a todas las aplicaciones', NOW(), NOW()),
-    ('20000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 'user', 'Usuario regular con permisos básicos', NOW(), NOW()),
-    ('20000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000000', 'admin', 'Administrador de la aplicación', NOW(), NOW()),
-    ('20000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000000', 'moderator', 'Moderador con permisos intermedios', NOW(), NOW())
+    ('10000000-0000-0000-0000-000000000001', '7057e69d-818b-45db-b39b-9d1c84aca142', 'super_admin', 'Super administrador con acceso global a todas las aplicaciones', NOW(), NOW()),
+    ('20000000-0000-0000-0000-000000000001', '7057e69d-818b-45db-b39b-9d1c84aca142', 'user', 'Usuario regular con permisos básicos', NOW(), NOW()),
+    ('20000000-0000-0000-0000-000000000002', '7057e69d-818b-45db-b39b-9d1c84aca142', 'admin', 'Administrador de la aplicación', NOW(), NOW()),
+    ('20000000-0000-0000-0000-000000000003', '7057e69d-818b-45db-b39b-9d1c84aca142', 'moderator', 'Moderador con permisos intermedios', NOW(), NOW())
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
@@ -236,44 +236,44 @@ ON CONFLICT (id) DO NOTHING;
 
 -- User permissions (basic users)
 INSERT INTO permissions (app_id, resource, action, description, created_at) VALUES
-    ('00000000-0000-0000-0000-000000000000', 'users', 'read:own', 'Ver su propio perfil', NOW()),
-    ('00000000-0000-0000-0000-000000000000', 'users', 'update:own', 'Actualizar su propio perfil', NOW()),
-    ('00000000-0000-0000-0000-000000000000', 'users', 'delete:own', 'Eliminar su propia cuenta', NOW()),
-    ('00000000-0000-0000-0000-000000000000', 'sessions', 'read:own', 'Ver sus propias sesiones', NOW()),
-    ('00000000-0000-0000-0000-000000000000', 'sessions', 'delete:own', 'Cerrar sus propias sesiones', NOW())
+    ('7057e69d-818b-45db-b39b-9d1c84aca142', 'users', 'read:own', 'Ver su propio perfil', NOW()),
+    ('7057e69d-818b-45db-b39b-9d1c84aca142', 'users', 'update:own', 'Actualizar su propio perfil', NOW()),
+    ('7057e69d-818b-45db-b39b-9d1c84aca142', 'users', 'delete:own', 'Eliminar su propia cuenta', NOW()),
+    ('7057e69d-818b-45db-b39b-9d1c84aca142', 'sessions', 'read:own', 'Ver sus propias sesiones', NOW()),
+    ('7057e69d-818b-45db-b39b-9d1c84aca142', 'sessions', 'delete:own', 'Cerrar sus propias sesiones', NOW())
 ON CONFLICT (app_id, resource, action) DO NOTHING;
 
 -- Admin permissions (application admins)
 INSERT INTO permissions (app_id, resource, action, description, created_at) VALUES
-    ('00000000-0000-0000-0000-000000000000', 'users', 'read:all', 'Ver todos los usuarios de la aplicación', NOW()),
-    ('00000000-0000-0000-0000-000000000000', 'users', 'update:all', 'Actualizar cualquier usuario', NOW()),
-    ('00000000-0000-0000-0000-000000000000', 'users', 'delete:all', 'Eliminar cualquier usuario', NOW()),
-    ('00000000-0000-0000-0000-000000000000', 'roles', 'create', 'Crear nuevos roles', NOW()),
-    ('00000000-0000-0000-0000-000000000000', 'roles', 'read', 'Ver roles', NOW()),
-    ('00000000-0000-0000-0000-000000000000', 'roles', 'update', 'Actualizar roles', NOW()),
-    ('00000000-0000-0000-0000-000000000000', 'roles', 'delete', 'Eliminar roles', NOW()),
-    ('00000000-0000-0000-0000-000000000000', 'roles', 'assign', 'Asignar roles a usuarios', NOW())
+    ('7057e69d-818b-45db-b39b-9d1c84aca142', 'users', 'read:all', 'Ver todos los usuarios de la aplicación', NOW()),
+    ('7057e69d-818b-45db-b39b-9d1c84aca142', 'users', 'update:all', 'Actualizar cualquier usuario', NOW()),
+    ('7057e69d-818b-45db-b39b-9d1c84aca142', 'users', 'delete:all', 'Eliminar cualquier usuario', NOW()),
+    ('7057e69d-818b-45db-b39b-9d1c84aca142', 'roles', 'create', 'Crear nuevos roles', NOW()),
+    ('7057e69d-818b-45db-b39b-9d1c84aca142', 'roles', 'read', 'Ver roles', NOW()),
+    ('7057e69d-818b-45db-b39b-9d1c84aca142', 'roles', 'update', 'Actualizar roles', NOW()),
+    ('7057e69d-818b-45db-b39b-9d1c84aca142', 'roles', 'delete', 'Eliminar roles', NOW()),
+    ('7057e69d-818b-45db-b39b-9d1c84aca142', 'roles', 'assign', 'Asignar roles a usuarios', NOW())
 ON CONFLICT (app_id, resource, action) DO NOTHING;
 
 -- Moderator permissions (intermediate level)
 INSERT INTO permissions (app_id, resource, action, description, created_at) VALUES
-    ('00000000-0000-0000-0000-000000000000', 'users', 'read:limited', 'Ver información limitada de usuarios', NOW())
+    ('7057e69d-818b-45db-b39b-9d1c84aca142', 'users', 'read:limited', 'Ver información limitada de usuarios', NOW())
 ON CONFLICT (app_id, resource, action) DO NOTHING;
 
 -- Super admin permissions (global, cross-app)
 INSERT INTO permissions (app_id, resource, action, description, created_at) VALUES
     -- App management
-    ('00000000-0000-0000-0000-000000000000', 'apps', 'create', 'Crear nuevas aplicaciones', NOW()),
-    ('00000000-0000-0000-0000-000000000000', 'apps', 'read:all', 'Ver todas las aplicaciones', NOW()),
-    ('00000000-0000-0000-0000-000000000000', 'apps', 'update:all', 'Actualizar cualquier aplicación', NOW()),
-    ('00000000-0000-0000-0000-000000000000', 'apps', 'delete:all', 'Eliminar cualquier aplicación', NOW()),
+    ('7057e69d-818b-45db-b39b-9d1c84aca142', 'apps', 'create', 'Crear nuevas aplicaciones', NOW()),
+    ('7057e69d-818b-45db-b39b-9d1c84aca142', 'apps', 'read:all', 'Ver todas las aplicaciones', NOW()),
+    ('7057e69d-818b-45db-b39b-9d1c84aca142', 'apps', 'update:all', 'Actualizar cualquier aplicación', NOW()),
+    ('7057e69d-818b-45db-b39b-9d1c84aca142', 'apps', 'delete:all', 'Eliminar cualquier aplicación', NOW()),
 
     -- Global role management
-    ('00000000-0000-0000-0000-000000000000', 'roles', 'create:all', 'Crear roles en cualquier app', NOW()),
-    ('00000000-0000-0000-0000-000000000000', 'roles', 'read:all', 'Ver roles de todas las apps', NOW()),
-    ('00000000-0000-0000-0000-000000000000', 'roles', 'update:all', 'Actualizar roles de cualquier app', NOW()),
-    ('00000000-0000-0000-0000-000000000000', 'roles', 'delete:all', 'Eliminar roles de cualquier app', NOW()),
-    ('00000000-0000-0000-0000-000000000000', 'roles', 'assign:all', 'Asignar roles a cualquier usuario', NOW())
+    ('7057e69d-818b-45db-b39b-9d1c84aca142', 'roles', 'create:all', 'Crear roles en cualquier app', NOW()),
+    ('7057e69d-818b-45db-b39b-9d1c84aca142', 'roles', 'read:all', 'Ver roles de todas las apps', NOW()),
+    ('7057e69d-818b-45db-b39b-9d1c84aca142', 'roles', 'update:all', 'Actualizar roles de cualquier app', NOW()),
+    ('7057e69d-818b-45db-b39b-9d1c84aca142', 'roles', 'delete:all', 'Eliminar roles de cualquier app', NOW()),
+    ('7057e69d-818b-45db-b39b-9d1c84aca142', 'roles', 'assign:all', 'Asignar roles a cualquier usuario', NOW())
 ON CONFLICT (app_id, resource, action) DO NOTHING;
 
 -- ============================================================================
@@ -286,7 +286,7 @@ SELECT
     '20000000-0000-0000-0000-000000000001',
     id
 FROM permissions
-WHERE app_id = '00000000-0000-0000-0000-000000000000'
+WHERE app_id = '7057e69d-818b-45db-b39b-9d1c84aca142'
   AND action IN ('read:own', 'update:own', 'delete:own')
 ON CONFLICT DO NOTHING;
 
@@ -296,7 +296,7 @@ SELECT
     '20000000-0000-0000-0000-000000000003',
     id
 FROM permissions
-WHERE app_id = '00000000-0000-0000-0000-000000000000'
+WHERE app_id = '7057e69d-818b-45db-b39b-9d1c84aca142'
   AND (
     action IN ('read:own', 'update:own', 'delete:own', 'read:limited')
   )
@@ -308,7 +308,7 @@ SELECT
     '20000000-0000-0000-0000-000000000002',
     id
 FROM permissions
-WHERE app_id = '00000000-0000-0000-0000-000000000000'
+WHERE app_id = '7057e69d-818b-45db-b39b-9d1c84aca142'
   AND (
     resource = 'users' OR
     resource = 'roles' OR
@@ -323,7 +323,7 @@ SELECT
     '10000000-0000-0000-0000-000000000001',
     id
 FROM permissions
-WHERE app_id = '00000000-0000-0000-0000-000000000000'
+WHERE app_id = '7057e69d-818b-45db-b39b-9d1c84aca142'
   AND (
     resource = 'apps' OR
     action LIKE '%:all'
@@ -338,7 +338,7 @@ ON CONFLICT DO NOTHING;
 CREATE OR REPLACE FUNCTION auto_assign_user_role()
 RETURNS TRIGGER AS $$
 DECLARE
-    base_app_id UUID := '00000000-0000-0000-0000-000000000000';
+    base_app_id UUID := '7057e69d-818b-45db-b39b-9d1c84aca142';
     user_role_id UUID := '20000000-0000-0000-0000-000000000001';
     target_role_id UUID;
 BEGIN
@@ -432,7 +432,7 @@ COMMENT ON TABLE role_permissions IS 'Role-Permission assignments (many-to-many)
 -- ============================================================================
 
 -- Summary of what was created:
--- ✅ Apps table with base app (00000000-0000-0000-0000-000000000000)
+-- ✅ Apps table with base app (7057e69d-818b-45db-b39b-9d1c84aca142)
 -- ✅ Users table with multi-tenant support (app_id)
 -- ✅ Users table with email verification fields
 -- ✅ Users table with password reset fields
