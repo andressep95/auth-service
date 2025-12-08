@@ -44,6 +44,10 @@ func NewCloudCentinelEmailService(config *EmailConfig) (*CloudCentinelEmailServi
 		timeout = 10 * time.Second
 	}
 
+	log.Printf("[EMAIL_INIT] Initializing CloudCentinel email service")
+	log.Printf("[EMAIL_INIT] Service URL: %s", config.BaseURL)
+	log.Printf("[EMAIL_INIT] Timeout: %v", timeout)
+
 	return &CloudCentinelEmailService{
 		client: &http.Client{
 			Timeout: timeout,
@@ -62,7 +66,12 @@ func (s *CloudCentinelEmailService) sendEmail(ctx context.Context, req *CloudCen
 		return fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	log.Printf("[EMAIL] Sending %s email to %s via %s", req.Type, req.To, s.serviceURL)
+	log.Printf("[EMAIL] ========== EMAIL REQUEST START ==========")
+	log.Printf("[EMAIL] Type: %s", req.Type)
+	log.Printf("[EMAIL] To: %s", req.To)
+	log.Printf("[EMAIL] Name: %s", req.Name)
+	log.Printf("[EMAIL] Token: %s", req.Token)
+	log.Printf("[EMAIL] Target URL: %s", s.serviceURL)
 	log.Printf("[EMAIL] Request body: %s", string(jsonData))
 
 	// Create HTTP request
@@ -74,9 +83,13 @@ func (s *CloudCentinelEmailService) sendEmail(ctx context.Context, req *CloudCen
 
 	// Set headers
 	httpReq.Header.Set("Content-Type", "application/json")
+	log.Printf("[EMAIL] Request Method: %s", httpReq.Method)
+	log.Printf("[EMAIL] Request URL (full): %s", httpReq.URL.String())
+	log.Printf("[EMAIL] Request Host: %s", httpReq.Host)
+	log.Printf("[EMAIL] Request Headers: %v", httpReq.Header)
 
 	// Send request
-	log.Printf("[EMAIL] Making HTTP POST request to email service...")
+	log.Printf("[EMAIL] Sending HTTP request now...")
 	startTime := time.Now()
 	resp, err := s.client.Do(httpReq)
 	elapsed := time.Since(startTime)
@@ -123,6 +136,7 @@ func (s *CloudCentinelEmailService) sendEmail(ctx context.Context, req *CloudCen
 	}
 
 	log.Printf("[EMAIL] SUCCESS: Email sent successfully")
+	log.Printf("[EMAIL] ========== EMAIL REQUEST END ==========")
 	return nil
 }
 
