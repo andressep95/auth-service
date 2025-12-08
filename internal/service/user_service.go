@@ -27,7 +27,7 @@ type UserService struct {
 }
 
 type RegisterRequest struct {
-	AppID     string `json:"app_id" validate:"required,uuid"`
+	AppID     string `json:"app_id" validate:"omitempty,uuid"` // Optional, defaults to base app
 	Email     string `json:"email" validate:"required,email"`
 	Password  string `json:"password" validate:"required,min=8"`
 	FirstName string `json:"first_name" validate:"required"`
@@ -50,10 +50,19 @@ func (s *UserService) SetAuthService(authService *AuthService) {
 }
 
 func (s *UserService) Register(ctx context.Context, req RegisterRequest) (*domain.User, error) {
-	// Parse and validate app_id
-	appID, err := uuid.Parse(req.AppID)
-	if err != nil {
-		return nil, errors.New("invalid app_id format")
+	// Parse and validate app_id (use base app if not provided)
+	var appID uuid.UUID
+	var err error
+
+	if req.AppID == "" {
+		// Use base app (00000000-0000-0000-0000-000000000000)
+		appID = uuid.MustParse("00000000-0000-0000-0000-000000000000")
+		log.Printf("[USER_SERVICE] No app_id provided, using base app: %s", appID)
+	} else {
+		appID, err = uuid.Parse(req.AppID)
+		if err != nil {
+			return nil, errors.New("invalid app_id format")
+		}
 	}
 
 	// Verify that the app exists

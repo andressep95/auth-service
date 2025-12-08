@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -34,7 +35,7 @@ type AuthService struct {
 type LoginRequest struct {
 	Email    string `json:"email" validate:"required,email"`
 	Password string `json:"password" validate:"required,min=8"`
-	AppID    string `json:"app_id" validate:"required,uuid"`
+	AppID    string `json:"app_id" validate:"omitempty,uuid"` // Optional, defaults to base app
 }
 
 type LoginResponse struct {
@@ -66,10 +67,19 @@ func NewAuthService(
 }
 
 func (s *AuthService) Login(ctx context.Context, req LoginRequest) (*LoginResponse, error) {
-	// Parse app ID
-	appID, err := uuid.Parse(req.AppID)
-	if err != nil {
-		return nil, errors.New("invalid app_id format")
+	// Parse app ID (use base app if not provided)
+	var appID uuid.UUID
+	var err error
+
+	if req.AppID == "" {
+		// Use base app (00000000-0000-0000-0000-000000000000)
+		appID = uuid.MustParse("00000000-0000-0000-0000-000000000000")
+		log.Printf("[AUTH_SERVICE] No app_id provided, using base app: %s", appID)
+	} else {
+		appID, err = uuid.Parse(req.AppID)
+		if err != nil {
+			return nil, errors.New("invalid app_id format")
+		}
 	}
 
 	// Get user by email and app (multi-tenant)
