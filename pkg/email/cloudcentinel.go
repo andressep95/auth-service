@@ -58,12 +58,17 @@ func (s *CloudCentinelEmailService) sendEmail(ctx context.Context, req *CloudCen
 	// Marshal request body
 	jsonData, err := json.Marshal(req)
 	if err != nil {
+		log.Printf("[EMAIL] ERROR: Failed to marshal request: %v", err)
 		return fmt.Errorf("failed to marshal request: %w", err)
 	}
+
+	log.Printf("[EMAIL] Sending %s email to %s via %s", req.Type, req.To, s.serviceURL)
+	log.Printf("[EMAIL] Request body: %s", string(jsonData))
 
 	// Create HTTP request
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", s.serviceURL, bytes.NewBuffer(jsonData))
 	if err != nil {
+		log.Printf("[EMAIL] ERROR: Failed to create HTTP request: %v", err)
 		return fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 
@@ -71,37 +76,53 @@ func (s *CloudCentinelEmailService) sendEmail(ctx context.Context, req *CloudCen
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	// Send request
+	log.Printf("[EMAIL] Making HTTP POST request to email service...")
+	startTime := time.Now()
 	resp, err := s.client.Do(httpReq)
+	elapsed := time.Since(startTime)
+
 	if err != nil {
+		log.Printf("[EMAIL] ERROR: Failed to send email request after %v: %v", elapsed, err)
 		return fmt.Errorf("failed to send email request: %w", err)
 	}
 	defer resp.Body.Close()
 
+	log.Printf("[EMAIL] Received response in %v - Status: %d", elapsed, resp.StatusCode)
+
 	// Read response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		log.Printf("[EMAIL] ERROR: Failed to read response body: %v", err)
 		return fmt.Errorf("failed to read response body: %w", err)
 	}
 
+	log.Printf("[EMAIL] Response body: %s", string(body))
+
 	// Check status code
 	if resp.StatusCode != http.StatusOK {
+		log.Printf("[EMAIL] ERROR: Non-OK status code %d", resp.StatusCode)
 		var errorResp CloudCentinelEmailResponse
 		if err := json.Unmarshal(body, &errorResp); err != nil {
+			log.Printf("[EMAIL] ERROR: Failed to parse error response: %v", err)
 			return fmt.Errorf("email service returned status %d: %s", resp.StatusCode, string(body))
 		}
+		log.Printf("[EMAIL] ERROR: Email service error: %s", errorResp.Error)
 		return fmt.Errorf("email service error: %s", errorResp.Error)
 	}
 
 	// Parse success response
 	var successResp CloudCentinelEmailResponse
 	if err := json.Unmarshal(body, &successResp); err != nil {
+		log.Printf("[EMAIL] ERROR: Failed to parse success response: %v", err)
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
 	if !successResp.Success {
+		log.Printf("[EMAIL] ERROR: Email service returned success=false: %s", successResp.Error)
 		return fmt.Errorf("email service returned success=false: %s", successResp.Error)
 	}
 
+	log.Printf("[EMAIL] SUCCESS: Email sent successfully")
 	return nil
 }
 

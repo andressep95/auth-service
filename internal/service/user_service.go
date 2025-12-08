@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -273,10 +274,15 @@ func (s *UserService) RequestPasswordReset(ctx context.Context, email string) er
 
 	// Send password reset email
 	if s.cfg.Email.Enabled && s.emailService != nil {
+		log.Printf("[USER_SERVICE] Calling email service to send password reset email to %s", user.Email)
 		if err := s.emailService.SendPasswordResetEmail(ctx, user.Email, user.FirstName, token); err != nil {
 			// Log error but don't fail (user already has token in DB)
-			fmt.Printf("Failed to send password reset email to %s: %v\n", user.Email, err)
+			log.Printf("[USER_SERVICE] ERROR: Failed to send password reset email to %s: %v", user.Email, err)
+		} else {
+			log.Printf("[USER_SERVICE] Password reset email sent successfully to %s", user.Email)
 		}
+	} else {
+		log.Printf("[USER_SERVICE] Email service disabled or not configured (Enabled: %v, Service: %v)", s.cfg.Email.Enabled, s.emailService != nil)
 	}
 
 	return nil
