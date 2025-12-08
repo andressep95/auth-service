@@ -114,24 +114,14 @@ wait_for_postgres() {
 
 # Función para ejecutar migraciones
 run_migrations() {
-    echo -e "${BLUE}📊 Ejecutando migraciones...${NC}"
+    echo -e "${BLUE}📊 Ejecutando migración inicial...${NC}"
 
     if ! docker-compose exec -T postgres psql -U auth -d authdb < migrations/001_initial.sql; then
         echo -e "${RED}❌ Error en migración inicial${NC}"
         exit 1
     fi
 
-    if ! docker-compose exec -T postgres psql -U auth -d authdb < migrations/002_seed_default_roles.sql; then
-        echo -e "${RED}❌ Error en migración de roles${NC}"
-        exit 1
-    fi
-
-    if ! docker-compose exec -T postgres psql -U auth -d authdb < migrations/003_add_email_verification.sql; then
-        echo -e "${RED}❌ Error en migración de email verification${NC}"
-        exit 1
-    fi
-
-    echo -e "${GREEN}✓ Migraciones ejecutadas exitosamente${NC}"
+    echo -e "${GREEN}✓ Migración ejecutada exitosamente${NC}"
 }
 
 # Función para verificar que el código compila

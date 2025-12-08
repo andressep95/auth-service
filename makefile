@@ -65,22 +65,18 @@ keys:
 	@echo "🔑 Generando claves RSA..."
 	@bash scripts/generate-keys.sh
 
-## migrate: Ejecutar TODAS las migraciones de base de datos
+## migrate: Ejecutar migración inicial de base de datos
 migrate:
-	@echo "📊 Ejecutando migraciones..."
-	@echo "  → Migración 001: Schema inicial..."
+	@echo "📊 Ejecutando migración inicial..."
+	@echo "  → Migración 001: Schema completo multi-tenant..."
 	@docker-compose exec -T postgres psql -U auth -d authdb < migrations/001_initial.sql
-	@echo "  → Migración 002: RBAC y roles por defecto..."
-	@docker-compose exec -T postgres psql -U auth -d authdb < migrations/002_seed_default_roles.sql
-	@echo "  → Migración 003: Email verification..."
-	@docker-compose exec -T postgres psql -U auth -d authdb < migrations/003_add_email_verification.sql
-	@echo "✓ Migraciones completas"
+	@echo "✓ Migración completa"
 
-## migrate-rbac: Ejecutar solo la migración de RBAC
+## migrate-rbac: DEPRECATED - RBAC ya está incluido en 001_initial.sql
 migrate-rbac:
-	@echo "📊 Ejecutando migración RBAC..."
-	@docker-compose exec -T postgres psql -U auth -d authdb < migrations/002_seed_default_roles.sql
-	@echo "✓ Migración RBAC completa"
+	@echo "⚠️  Este comando está deprecado."
+	@echo "   RBAC ya está incluido en la migración 001_initial.sql"
+	@echo "   Usa 'make migrate' en su lugar"
 
 ## db-reset: Resetear completamente la base de datos (⚠️  BORRA TODOS LOS DATOS)
 db-reset:
@@ -92,10 +88,8 @@ db-reset:
 		docker-compose exec postgres psql -U auth -d postgres -c "DROP DATABASE IF EXISTS authdb;"; \
 		echo "🔨 Creando base de datos..."; \
 		docker-compose exec postgres psql -U auth -d postgres -c "CREATE DATABASE authdb;"; \
-		echo "📊 Ejecutando migraciones..."; \
+		echo "📊 Ejecutando migración inicial..."; \
 		docker-compose exec -T postgres psql -U auth -d authdb < migrations/001_initial.sql; \
-		docker-compose exec -T postgres psql -U auth -d authdb < migrations/002_seed_default_roles.sql; \
-		docker-compose exec -T postgres psql -U auth -d authdb < migrations/003_add_email_verification.sql; \
 		echo "✓ Base de datos reseteada completamente"; \
 	else \
 		echo "❌ Operación cancelada"; \

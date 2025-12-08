@@ -11,6 +11,7 @@ import (
 type Session struct {
 	ID               uuid.UUID `json:"id" db:"id"`
 	UserID           uuid.UUID `json:"user_id" db:"user_id"`
+	AppID            uuid.UUID `json:"app_id" db:"app_id"`
 	RefreshTokenHash string    `json:"-" db:"refresh_token_hash"` // SHA-256 hash, never expose
 	UserAgent        *string   `json:"user_agent,omitempty" db:"user_agent"`
 	IPAddress        *string   `json:"ip_address,omitempty" db:"ip_address"`

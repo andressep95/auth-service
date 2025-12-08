@@ -25,10 +25,10 @@ func NewSessionRepository(db *sqlx.DB) repository.SessionRepository {
 func (r *sessionRepository) Create(ctx context.Context, session *domain.Session) error {
 	query := `
 		INSERT INTO sessions (
-			id, user_id, refresh_token_hash, user_agent,
+			id, user_id, app_id, refresh_token_hash, user_agent,
 			ip_address, expires_at, created_at
 		) VALUES (
-			:id, :user_id, :refresh_token_hash, :user_agent,
+			:id, :user_id, :app_id, :refresh_token_hash, :user_agent,
 			:ip_address, :expires_at, :created_at
 		)`
 
@@ -43,7 +43,7 @@ func (r *sessionRepository) Create(ctx context.Context, session *domain.Session)
 // GetByID retrieves a session by its ID
 func (r *sessionRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Session, error) {
 	query := `
-		SELECT id, user_id, refresh_token_hash, user_agent,
+		SELECT id, user_id, app_id, refresh_token_hash, user_agent,
 			   ip_address, expires_at, created_at
 		FROM sessions
 		WHERE id = $1`
@@ -63,7 +63,7 @@ func (r *sessionRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.
 // GetByToken retrieves a session by its token hash
 func (r *sessionRepository) GetByToken(ctx context.Context, tokenHash string) (*domain.Session, error) {
 	query := `
-		SELECT id, user_id, refresh_token_hash, user_agent,
+		SELECT id, user_id, app_id, refresh_token_hash, user_agent,
 			   ip_address, expires_at, created_at
 		FROM sessions
 		WHERE refresh_token_hash = $1 AND expires_at > $2`
@@ -83,7 +83,7 @@ func (r *sessionRepository) GetByToken(ctx context.Context, tokenHash string) (*
 // GetByUserID retrieves all sessions for a specific user
 func (r *sessionRepository) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*domain.Session, error) {
 	query := `
-		SELECT id, user_id, refresh_token_hash, user_agent,
+		SELECT id, user_id, app_id, refresh_token_hash, user_agent,
 			   ip_address, expires_at, created_at
 		FROM sessions
 		WHERE user_id = $1 AND expires_at > $2

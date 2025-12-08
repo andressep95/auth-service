@@ -16,6 +16,7 @@ const (
 
 type User struct {
 	ID                              uuid.UUID  `json:"id" db:"id"`
+	AppID                           uuid.UUID  `json:"app_id" db:"app_id"`
 	Email                           string     `json:"email" db:"email"`
 	PasswordHash                    string     `json:"-" db:"password_hash"`
 	FirstName                       string     `json:"first_name" db:"first_name"`
@@ -30,6 +31,8 @@ type User struct {
 	EmailVerificationTokenExpiresAt *time.Time `json:"-" db:"email_verification_token_expires_at"`
 	PasswordResetToken              *string    `json:"-" db:"password_reset_token"`
 	PasswordResetTokenExpiresAt     *time.Time `json:"-" db:"password_reset_token_expires_at"`
+	Provider                        *string    `json:"provider,omitempty" db:"provider"`
+	ProviderID                      *string    `json:"provider_id,omitempty" db:"provider_id"`
 	IsSuperAdmin                    bool       `json:"is_super_admin" db:"is_super_admin"`
 	CreatedAt                       time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt                       time.Time  `json:"updated_at" db:"updated_at"`

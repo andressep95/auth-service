@@ -25,18 +25,20 @@ func NewUserRepository(db *sqlx.DB) repository.UserRepository {
 func (r *userRepository) Create(ctx context.Context, user *domain.User) error {
 	query := `
 		INSERT INTO users (
-			id, email, password_hash, first_name, last_name,
+			id, app_id, email, password_hash, first_name, last_name,
 			status, email_verified, mfa_enabled, mfa_secret,
 			failed_logins, locked_until,
 			email_verification_token, email_verification_token_expires_at,
 			password_reset_token, password_reset_token_expires_at,
+			provider, provider_id, is_super_admin,
 			created_at, updated_at, last_login_at
 		) VALUES (
-			:id, :email, :password_hash, :first_name, :last_name,
+			:id, :app_id, :email, :password_hash, :first_name, :last_name,
 			:status, :email_verified, :mfa_enabled, :mfa_secret,
 			:failed_logins, :locked_until,
 			:email_verification_token, :email_verification_token_expires_at,
 			:password_reset_token, :password_reset_token_expires_at,
+			:provider, :provider_id, :is_super_admin,
 			:created_at, :updated_at, :last_login_at
 		)`
 
@@ -51,11 +53,12 @@ func (r *userRepository) Create(ctx context.Context, user *domain.User) error {
 // GetByID retrieves a user by their ID
 func (r *userRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, error) {
 	query := `
-		SELECT id, email, password_hash, first_name, last_name,
+		SELECT id, app_id, email, password_hash, first_name, last_name,
 			   status, email_verified, mfa_enabled, mfa_secret,
 			   failed_logins, locked_until,
 			   email_verification_token, email_verification_token_expires_at,
 			   password_reset_token, password_reset_token_expires_at,
+			   provider, provider_id, is_super_admin,
 			   created_at, updated_at, last_login_at
 		FROM users
 		WHERE id = $1`
@@ -75,11 +78,12 @@ func (r *userRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Use
 // GetByEmail retrieves a user by their email address
 func (r *userRepository) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
 	query := `
-		SELECT id, email, password_hash, first_name, last_name,
+		SELECT id, app_id, email, password_hash, first_name, last_name,
 			   status, email_verified, mfa_enabled, mfa_secret,
 			   failed_logins, locked_until,
 			   email_verification_token, email_verification_token_expires_at,
 			   password_reset_token, password_reset_token_expires_at,
+			   provider, provider_id, is_super_admin,
 			   created_at, updated_at, last_login_at
 		FROM users
 		WHERE email = $1`
@@ -91,6 +95,31 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*domain.
 			return nil, fmt.Errorf("user not found: %w", err)
 		}
 		return nil, fmt.Errorf("failed to get user by email: %w", err)
+	}
+
+	return &user, nil
+}
+
+// GetByEmailAndApp retrieves a user by their email address and app ID (multi-tenant)
+func (r *userRepository) GetByEmailAndApp(ctx context.Context, email string, appID uuid.UUID) (*domain.User, error) {
+	query := `
+		SELECT id, app_id, email, password_hash, first_name, last_name,
+			   status, email_verified, mfa_enabled, mfa_secret,
+			   failed_logins, locked_until,
+			   email_verification_token, email_verification_token_expires_at,
+			   password_reset_token, password_reset_token_expires_at,
+			   provider, provider_id, is_super_admin,
+			   created_at, updated_at, last_login_at
+		FROM users
+		WHERE email = $1 AND app_id = $2`
+
+	var user domain.User
+	err := r.db.GetContext(ctx, &user, query, email, appID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("user not found: %w", err)
+		}
+		return nil, fmt.Errorf("failed to get user by email and app: %w", err)
 	}
 
 	return &user, nil
@@ -116,6 +145,9 @@ func (r *userRepository) Update(ctx context.Context, user *domain.User) error {
 			email_verification_token_expires_at = :email_verification_token_expires_at,
 			password_reset_token = :password_reset_token,
 			password_reset_token_expires_at = :password_reset_token_expires_at,
+			provider = :provider,
+			provider_id = :provider_id,
+			is_super_admin = :is_super_admin,
 			updated_at = :updated_at,
 			last_login_at = :last_login_at
 		WHERE id = :id`

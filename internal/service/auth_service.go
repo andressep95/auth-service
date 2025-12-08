@@ -72,8 +72,8 @@ func (s *AuthService) Login(ctx context.Context, req LoginRequest) (*LoginRespon
 		return nil, errors.New("invalid app_id format")
 	}
 
-	// Get user by email
-	user, err := s.userRepo.GetByEmail(ctx, req.Email)
+	// Get user by email and app (multi-tenant)
+	user, err := s.userRepo.GetByEmailAndApp(ctx, req.Email, appID)
 	if err != nil {
 		return nil, ErrInvalidCredentials
 	}
@@ -146,6 +146,7 @@ func (s *AuthService) Login(ctx context.Context, req LoginRequest) (*LoginRespon
 	session := &domain.Session{
 		ID:               sessionID,
 		UserID:           user.ID,
+		AppID:            appID,
 		RefreshTokenHash: hashedRefreshToken,
 		ExpiresAt:        time.Now().Add(s.cfg.JWT.RefreshTokenExpiry),
 		CreatedAt:        time.Now(),

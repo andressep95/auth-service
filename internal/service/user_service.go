@@ -18,6 +18,7 @@ import (
 
 type UserService struct {
 	userRepo     repository.UserRepository
+	appRepo      repository.AppRepository
 	sessionRepo  repository.SessionRepository
 	authService  *AuthService
 	emailService email.EmailService
@@ -25,15 +26,17 @@ type UserService struct {
 }
 
 type RegisterRequest struct {
+	AppID     string `json:"app_id" validate:"required,uuid"`
 	Email     string `json:"email" validate:"required,email"`
 	Password  string `json:"password" validate:"required,min=8"`
 	FirstName string `json:"first_name" validate:"required"`
 	LastName  string `json:"last_name" validate:"required"`
 }
 
-func NewUserService(userRepo repository.UserRepository, sessionRepo repository.SessionRepository, emailService email.EmailService, cfg *config.Config) *UserService {
+func NewUserService(userRepo repository.UserRepository, appRepo repository.AppRepository, sessionRepo repository.SessionRepository, emailService email.EmailService, cfg *config.Config) *UserService {
 	return &UserService{
 		userRepo:     userRepo,
+		appRepo:      appRepo,
 		sessionRepo:  sessionRepo,
 		emailService: emailService,
 		cfg:          cfg,
@@ -46,10 +49,22 @@ func (s *UserService) SetAuthService(authService *AuthService) {
 }
 
 func (s *UserService) Register(ctx context.Context, req RegisterRequest) (*domain.User, error) {
-	// Check if user already exists
-	existingUser, err := s.userRepo.GetByEmail(ctx, req.Email)
+	// Parse and validate app_id
+	appID, err := uuid.Parse(req.AppID)
+	if err != nil {
+		return nil, errors.New("invalid app_id format")
+	}
+
+	// Verify that the app exists
+	app, err := s.appRepo.GetByID(ctx, appID)
+	if err != nil || app == nil {
+		return nil, errors.New("application not found")
+	}
+
+	// Check if user already exists in this app
+	existingUser, err := s.userRepo.GetByEmailAndApp(ctx, req.Email, appID)
 	if err == nil && existingUser != nil {
-		return nil, errors.New("user with this email already exists")
+		return nil, errors.New("user with this email already exists in this application")
 	}
 
 	// Hash password
@@ -70,6 +85,7 @@ func (s *UserService) Register(ctx context.Context, req RegisterRequest) (*domai
 	// Create user
 	user := &domain.User{
 		ID:                              uuid.New(),
+		AppID:                           appID,
 		Email:                           req.Email,
 		PasswordHash:                    passwordHash,
 		FirstName:                       req.FirstName,

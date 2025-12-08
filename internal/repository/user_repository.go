@@ -11,6 +11,7 @@ type UserRepository interface {
 	Create(ctx context.Context, user *domain.User) error
 	GetByID(ctx context.Context, id uuid.UUID) (*domain.User, error)
 	GetByEmail(ctx context.Context, email string) (*domain.User, error)
+	GetByEmailAndApp(ctx context.Context, email string, appID uuid.UUID) (*domain.User, error)
 	GetByVerificationToken(ctx context.Context, token string) (*domain.User, error)
 	GetByPasswordResetToken(ctx context.Context, token string) (*domain.User, error)
 	Update(ctx context.Context, user *domain.User) error
