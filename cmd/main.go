@@ -92,21 +92,16 @@ func main() {
 	var emailService email.EmailService
 	if cfg.Email.Enabled {
 		emailConfig := &email.EmailConfig{
-			Provider:        cfg.Email.Provider,
-			APIKey:          cfg.Email.APIKey,
-			FromEmail:       cfg.Email.FromEmail,
-			FromName:        cfg.Email.FromName,
-			BaseURL:         cfg.Email.BaseURL,
-			VerificationURL: cfg.Email.VerificationURL,
-			ResetURL:        cfg.Email.ResetURL,
+			BaseURL: cfg.Email.ServiceURL,
+			Timeout: cfg.Email.Timeout,
 		}
 
-		emailService, err = email.NewResendEmailService(emailConfig)
+		emailService, err = email.NewCloudCentinelEmailService(emailConfig)
 		if err != nil {
 			log.Printf("Warning: Failed to initialize email service: %v", err)
 			log.Println("Email functionality will be disabled")
 		} else {
-			log.Println("✓ Email service initialized (Resend)")
+			log.Printf("✓ Email service initialized (CloudCentinel) - %s", cfg.Email.ServiceURL)
 		}
 	} else {
 		log.Println("ℹ Email service disabled (set EMAIL_ENABLED=true to enable)")

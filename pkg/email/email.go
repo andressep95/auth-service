@@ -32,14 +32,8 @@ type EmailRequest struct {
 
 // EmailConfig holds email service configuration
 type EmailConfig struct {
-	Provider        string        // resend, sendgrid, etc.
-	APIKey          string        // API key for the provider
-	FromEmail       string        // Default from email
-	FromName        string        // Default from name
-	BaseURL         string        // Base URL for email links (e.g., https://app.example.com)
-	Timeout         time.Duration // Request timeout
-	VerificationURL string        // URL template for verification links
-	ResetURL        string        // URL template for password reset links
+	BaseURL string        // URL of the email service API endpoint
+	Timeout time.Duration // HTTP request timeout
 }
 
 // EmailMetrics holds metrics for monitoring

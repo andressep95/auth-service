@@ -13,7 +13,6 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9
 	github.com/redis/go-redis/v9 v9.17.1
-	github.com/resend/resend-go/v2 v2.28.0
 	golang.org/x/crypto v0.45.0
 )
 

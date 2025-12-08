@@ -1512,11 +1512,17 @@ components:
     RegisterRequest:
       type: object
       required:
+        - app_id
         - email
         - password
         - first_name
         - last_name
       properties:
+        app_id:
+          type: string
+          format: uuid
+          description: UUID de la aplicación donde se registra el usuario
+          example: 00000000-0000-0000-0000-000000000000
         email:
           type: string
           format: email
@@ -1601,10 +1607,31 @@ components:
           type: string
           format: uuid
           example: 123e4567-e89b-12d3-a456-426614174000
+        app_id:
+          type: string
+          format: uuid
+          description: UUID de la aplicación a la que pertenece el usuario
+          example: 00000000-0000-0000-0000-000000000000
         email:
           type: string
           format: email
           example: user@example.com
+        provider:
+          anyOf:
+            - type: string
+            - type: "null"
+          description: Proveedor de autenticación (google, github, etc.) para social login
+          example: null
+        provider_id:
+          anyOf:
+            - type: string
+            - type: "null"
+          description: ID del usuario en el proveedor externo
+          example: null
+        is_super_admin:
+          type: boolean
+          description: Indica si el usuario es super administrador del sistema
+          example: false
         first_name:
           type: string
           example: Juan

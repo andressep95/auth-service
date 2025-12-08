@@ -17,35 +17,80 @@
 
 ## Resumen Ejecutivo
 
-**Auth Service** es un microservicio de autenticación y autorización construido en Go con arquitectura limpia, diseñado para ser el Identity Provider de un ecosistema de microservicios.
+**Auth Service** es un microservicio de autenticación y autorización multi-tenant construido en Go con arquitectura limpia, diseñado para ser el Identity Provider de un ecosistema de microservicios donde múltiples aplicaciones independientes pueden registrarse y gestionar sus propios usuarios.
 
-> 🔒 **Versión 1.1.0** - Incluye corrección crítica del sistema de token blacklist.
-> El reset de contraseña ahora funciona correctamente, permitiendo nuevos logins
-> inmediatamente después del reset mientras mantiene la seguridad completa.
-> Ver sección "Correcciones Críticas Aplicadas" al final del documento.
+> 🔒 **Versión 1.5.0** - Sistema multi-tenant completo con gestión de aplicaciones independientes.
+> Cada aplicación tiene su propio conjunto de usuarios, roles y permisos con aislamiento total.
+> Incluye corrección crítica del sistema de token blacklist y session management completo.
 
 ### Tecnologías Core
 
 - **Lenguaje**: Go 1.24
 - **Framework Web**: Fiber v2
-- **Base de Datos**: PostgreSQL 16
-- **Cache**: Redis 7
-- **Tokens**: JWT con RS256 (RSA)
+- **Base de Datos**: PostgreSQL 16 con soporte multi-tenant
+- **Cache**: Redis 7 para token blacklist
+- **Tokens**: JWT con RS256 (RSA) incluyendo app_id en claims
 - **Password Hashing**: Argon2id
 - **Containerización**: Docker + Docker Compose
+- **Email Service**: CloudCentinel Email Service (AWS SES)
 
 ### Estado del Proyecto
 
-✅ **Producción Ready** - Todas las funcionalidades core implementadas y probadas
-✅ **Email Service** - Integrado con Resend
-✅ **Password Reset** - Flujo completo implementado y verificado
-✅ **Token Blacklist** - Sistema corregido y funcionando correctamente
+✅ **Producción Ready** - Sistema multi-tenant completamente implementado
+✅ **Multi-Tenancy** - Aislamiento completo de usuarios por aplicación (app_id)
+✅ **App Management** - Gestión de aplicaciones independientes (super_admin)
+✅ **Session Management** - Control completo de sesiones activas por usuario
+✅ **Email Service** - Integrado con CloudCentinel Email Service (AWS SES)
+✅ **Password Reset** - Flujo completo con invalidación de tokens por timestamp
+✅ **Token Blacklist** - Sistema por timestamp funcionando correctamente
+✅ **Social Login Ready** - Campos preparados para OAuth providers (google, github)
+✅ **JWKS Endpoint** - Validación de tokens JWT por otros microservicios
 
-**Última actualización:** v1.1.0 (2024-11-30)
+**Última actualización:** v1.5.0 (2024-12-07)
 
 ---
 
 ## Arquitectura
+
+### Arquitectura Multi-Tenant
+
+El sistema implementa multi-tenancy a nivel de aplicación donde cada app opera de forma independiente:
+
+**Modelo de Aislamiento:**
+- Cada aplicación tiene un `app_id` único (UUID)
+- Los usuarios se registran en una aplicación específica mediante `app_id` en el registro
+- Un mismo email puede existir en múltiples aplicaciones con diferentes contraseñas
+- Constraint de unicidad: `UNIQUE(app_id, email)` en tabla users
+- Constraint para social login: `UNIQUE(app_id, provider, provider_id)`
+- Búsqueda de usuarios siempre requiere `app_id + email`
+
+**Aislamiento de Datos:**
+- **Usuarios**: Campo `app_id` en tabla users, todas las consultas filtran por app_id
+- **Sesiones**: Campo `app_id` en tabla sessions, aislamiento completo por aplicación
+- **Roles**: Campo `app_id` en tabla roles, cada app tiene sus propios roles independientes
+- **Permisos**: Campo `app_id` en tabla permissions
+- **JWT tokens**: Incluyen `app_id` en claims para validación en otros microservicios
+
+**Gestión de Aplicaciones:**
+- Super Admin puede crear nuevas aplicaciones vía POST /api/v1/super-admin/apps
+- Cada app tiene: id (UUID), name, client_id, description, timestamps
+- Trigger automático crea 4 roles default por app: super_admin, admin, moderator, user
+- Endpoint requiere `is_super_admin=true` en el usuario
+- Listar apps: GET /api/v1/super-admin/apps
+- Obtener app específica: GET /api/v1/super-admin/apps/:id
+
+**Preparación para Social Login:**
+- Campo `provider` en users: google, github, facebook, etc. (nullable)
+- Campo `provider_id` en users: ID del usuario en el proveedor externo (nullable)
+- Constraint único: `(app_id, provider, provider_id)`
+- Password es opcional cuando provider != null (login con OAuth)
+- Permite login híbrido: mismo usuario con password y social login
+
+**Flujo Multi-Tenant:**
+1. Super Admin crea nueva aplicación → app_id generado + 4 roles default
+2. Usuario se registra con app_id específico → registro en esa app únicamente
+3. Usuario hace login con app_id + email + password → token incluye app_id
+4. Cada app tiene sus propios roles y permisos aislados
 
 ### Estructura del Proyecto
 
@@ -173,312 +218,279 @@ make admin-login
 
 ### ✅ Implementadas
 
+#### Multi-Tenancy
+- ✅ Aislamiento completo de usuarios por app_id
+- ✅ Mismo email puede existir en múltiples apps con diferentes passwords
+- ✅ Gestión de aplicaciones (crear, listar, obtener por ID)
+- ✅ Roles y permisos independientes por aplicación
+- ✅ JWT tokens incluyen app_id en claims
+- ✅ Super Admin puede gestionar todas las aplicaciones
+- ✅ Trigger automático crea 4 roles default al crear app
+- ✅ Constraint UNIQUE(app_id, email) y UNIQUE(app_id, provider, provider_id)
+
 #### Autenticación
-- ✅ Registro de usuarios
-- ✅ Login con email/password
-- ✅ Refresh token rotation
-- ✅ Logout (invalidación de sesión)
-- ✅ Account locking (5 intentos fallidos → 15 min)
-- ✅ Password hashing con Argon2id
+- ✅ Registro de usuarios por aplicación (requiere app_id)
+- ✅ Login con email/password/app_id
+- ✅ Refresh token rotation automática
+- ✅ Logout con invalidación de sesión
+- ✅ Account locking: 5 intentos fallidos → bloqueo 15 minutos
+- ✅ Password hashing con Argon2id (64MB memory, 3 iterations)
+- ✅ Email verification con token de 24h
+- ✅ Password reset con token de 1h de un solo uso
+- ✅ Cambio de contraseña con invalidación de sesiones
+- ✅ Preparación para Social Login (provider, provider_id fields)
 
 #### Autorización (RBAC)
-- ✅ Sistema de roles por aplicación
-- ✅ 3 roles predefinidos: user, moderator, admin
+- ✅ Sistema de roles por aplicación (multi-tenant)
+- ✅ 4 roles predefinidos por app: super_admin, admin, moderator, user
 - ✅ 14 permisos granulares
-- ✅ Auto-asignación de rol "user" en registro
-- ✅ Middlewares de autorización
-- ✅ Gestión completa de roles (CRUD)
+- ✅ Auto-asignación de rol "user" en registro (trigger)
+- ✅ Middlewares de autorización (RequireAuth, RequireRole, RequirePermission)
+- ✅ Gestión completa de roles (CRUD) por app_id
+- ✅ Asignación/remoción de roles a usuarios
+- ✅ Consulta de permisos efectivos del usuario
 
 #### Tokens & Sesiones
-- ✅ JWT con RS256 (asimétrico)
-- ✅ Access token (15 min)
-- ✅ Refresh token (7 días)
-- ✅ Token rotation en cada refresh
-- ✅ Sesiones en PostgreSQL
-- ✅ Refresh tokens hasheados (SHA-256)
+- ✅ JWT con RS256 (asimétrico, RSA 4096 bits)
+- ✅ Access token: 15 minutos de duración
+- ✅ Refresh token: 7 días de duración
+- ✅ Token rotation en cada refresh (invalidación del anterior)
+- ✅ Sesiones almacenadas en PostgreSQL con app_id
+- ✅ Refresh tokens hasheados (SHA-256) en DB
+- ✅ Session Management: listar sesiones activas del usuario
+- ✅ Cierre de sesión específica por ID
+- ✅ Cierre de todas las sesiones (con opción exclude_current)
+- ✅ Metadata de sesiones: IP, User-Agent, timestamps
+- ✅ JWKS endpoint (/.well-known/jwks.json) para validación por otros servicios
 
 #### Seguridad
-- ✅ CORS configurable por env
-- ✅ Password strength validation
-- ✅ Rate limiting ready
+- ✅ CORS configurable por variables de entorno
+- ✅ Password strength validation (8+ chars, mayúscula, minúscula, número, especial)
+- ✅ Token Blacklist en Redis con invalidación por timestamp
+- ✅ Invalidación automática de tokens al cambiar/resetear contraseña
+- ✅ Rate limiting ready (infraestructura preparada)
 - ✅ HTTPS ready
-- ✅ Audit logs table (pendiente integración)
+- ✅ Audit logs table (estructura creada, integración pendiente)
+- ✅ Argon2id para password hashing
+- ✅ Token rotation en refresh para prevenir replay attacks
 
 #### Infraestructura
-- ✅ Docker Compose setup
-- ✅ Health checks (/health, /ready)
-- ✅ Graceful shutdown
-- ✅ Connection pooling
-- ✅ Migraciones SQL versionadas
-- ✅ Scripts de automatización
+- ✅ Docker Compose setup multi-contenedor
+- ✅ Health checks (/health básico, /ready con DB+Redis)
+- ✅ Graceful shutdown con señales SIGINT/SIGTERM
+- ✅ Connection pooling optimizado (25 max open, 5 idle, 5min lifetime)
+- ✅ Migraciones SQL versionadas (001_initial.sql consolidado)
+- ✅ Scripts de automatización (setup, keys, admin creation)
+- ✅ Email service con CloudCentinel (AWS SES) integrado
 
 ### ⏳ Pendientes
 
 #### Alta Prioridad
-- ✅ Email verification (implementado)
-- ✅ Password reset flow (implementado)
-- ✅ Email service integration (Resend implementado)
+- ⏳ MFA/2FA con TOTP (campos preparados en DB)
+- ⏳ Rate limiting activo por IP y por usuario
+- ⏳ Implementar OAuth2 social login (infraestructura ya preparada)
 
 #### Media Prioridad
-- ⏳ MFA/2FA (TOTP)
-- ⏳ Rate limiting activo
-- ⏳ Audit logging integrado
-- ⏳ Session management UI
+- ⏳ Audit logging activo (tabla existe, falta integración)
+- ⏳ Session management UI/Dashboard
+- ⏳ Rotación automática de claves RSA
+- ⏳ Métricas y observabilidad (Prometheus/Grafana)
 
 #### Baja Prioridad
-- ⏳ JWKS endpoint
-- ⏳ OAuth2 provider
-- ⏳ Social login (Google, GitHub)
+- ⏳ OAuth2 provider (este servicio como IdP para otros)
+- ⏳ Recuperación de cuenta por SMS
+- ⏳ Geolocalización de sesiones
 
 ---
 
 ## API Endpoints
 
+Ver `docs/openapi.yaml` para especificación completa de la API.
+
+### Setup y Health
+
+#### POST /api/v1/setup/super-admin
+Crea el primer super administrador del sistema (solo una vez).
+- **Seguridad**: Endpoint público, bloqueado después del primer uso
+- **Request**: email, password, first_name, last_name
+- **Response**: 201 Created con datos del super admin
+- **Uso**: Llamar inmediatamente después del deployment inicial
+
+#### GET /health
+Health check básico - verifica que el servicio esté corriendo.
+- **Response**: 200 OK con status y timestamp
+
+#### GET /ready
+Readiness check - verifica conexión a PostgreSQL y Redis.
+- **Response**: 200 OK con estado de database y redis
+
+#### GET /.well-known/jwks.json
+JSON Web Key Set para validación de tokens JWT por otros microservicios.
+- **Formato**: Array de claves públicas en formato JWK (kty, use, kid, alg, n, e)
+- **Uso**: Integración con API Gateways y validación de tokens distribuida
+
 ### Autenticación (Público)
 
 #### POST /api/v1/auth/register
-Registra un nuevo usuario.
-
-**Request:**
-```json
-{
-  "email": "user@example.com",
-  "password": "SecurePass123!",
-  "first_name": "John",
-  "last_name": "Doe"
-}
-```
-
-**Response:** `201 Created`
-```json
-{
-  "message": "User registered successfully",
-  "user": {
-    "id": "uuid",
-    "email": "user@example.com",
-    "first_name": "John",
-    "last_name": "Doe",
-    "status": "active",
-    "email_verified": false
-  }
-}
-```
+Registra un nuevo usuario en una aplicación específica.
+- **Requiere**: app_id (UUID), email, password, first_name, last_name, phone_number (opcional)
+- **Validación**: Password mínimo 8 caracteres con mayúscula, minúscula, número y carácter especial
+- **Response**: 201 Created con datos del usuario
+- **Auto-asignación**: Rol "user" asignado automáticamente
+- **Multi-tenant**: Usuario aislado por app_id
 
 #### POST /api/v1/auth/login
-Autentica usuario y retorna tokens.
-
-**Request:**
-```json
-{
-  "email": "user@example.com",
-  "password": "SecurePass123!",
-  "app_id": "00000000-0000-0000-0000-000000000000"
-}
-```
-
-**Response:** `200 OK`
-```json
-{
-  "tokens": {
-    "access_token": "eyJhbGc...",
-    "refresh_token": "eyJhbGc...",
-    "expires_at": "2024-01-01T12:15:00Z",
-    "token_type": "Bearer"
-  },
-  "user": {
-    "id": "uuid",
-    "email": "user@example.com"
-  }
-}
-```
+Autentica usuario y retorna tokens JWT.
+- **Requiere**: email, password, app_id (UUID)
+- **Response**: 200 OK con access_token (15 min), refresh_token (7 días), user
+- **Token tipo**: Bearer con RS256
+- **Claims**: Incluye user_id, email, roles, app_id
+- **Account locking**: 5 intentos fallidos → bloqueo 15 minutos
+- **Multi-tenant**: Login específico por aplicación (app_id)
 
 #### POST /api/v1/auth/refresh
-Renueva access token.
-
-**Request:**
-```json
-{
-  "refresh_token": "eyJhbGc..."
-}
-```
-
-**Response:** `200 OK`
-```json
-{
-  "access_token": "eyJhbGc...",
-  "refresh_token": "eyJhbGc...",
-  "expires_at": "2024-01-01T12:30:00Z",
-  "token_type": "Bearer"
-}
-```
+Renueva access token usando refresh token.
+- **Requiere**: refresh_token
+- **Response**: 200 OK con nuevos access_token y refresh_token
+- **Token rotation**: Refresh token anterior se invalida automáticamente
+- **Seguridad**: Hash SHA-256 del refresh token almacenado en DB
 
 #### POST /api/v1/auth/logout
 Cierra sesión e invalida refresh token.
-
-**Request:**
-```json
-{
-  "refresh_token": "eyJhbGc..."
-}
-```
-
-**Response:** `200 OK`
+- **Requiere**: refresh_token
+- **Response**: 200 OK
+- **Efecto**: Elimina sesión de DB y refresh token
 
 #### POST /api/v1/auth/forgot-password
-Solicita un reset de contraseña por email.
-
-**Request:**
-```json
-{
-  "email": "user@example.com"
-}
-```
-
-**Response:** `200 OK`
-```json
-{
-  "message": "If the email exists, a password reset link has been sent"
-}
-```
-
-**Nota:** Por seguridad, siempre retorna 200 OK aunque el email no exista.
+Solicita reset de contraseña vía email.
+- **Requiere**: email
+- **Response**: 200 OK (siempre, por seguridad)
+- **Token**: 1 hora de validez, enviado por email
+- **Seguridad**: No revela si el email existe o no
 
 #### POST /api/v1/auth/reset-password
-Resetea la contraseña usando el token enviado por email.
+Resetea contraseña usando token del email.
+- **Requiere**: token, new_password
+- **Response**: 200 OK
+- **Seguridad**: Token de un solo uso, expira en 1h, cierra todas las sesiones, invalida todos los tokens emitidos antes del reset
+- **Email**: Confirmación enviada automáticamente
 
-**Request:**
-```json
-{
-  "token": "<reset_token_from_email>",
-  "new_password": "NewSecurePass123!"
-}
-```
+#### GET /api/v1/auth/verify-email/:token
+Verifica email del usuario con token.
+- **Requiere**: token en path
+- **Response**: 200 OK
+- **Token**: 24 horas de validez
 
-**Response:** `200 OK`
-```json
-{
-  "message": "Password reset successfully"
-}
-```
-
-**Seguridad del Reset:**
-- ✅ Token expira en 1 hora
-- ✅ Token de un solo uso (se elimina después de usar)
-- ✅ Todas las sesiones activas se cierran
-- ✅ Todos los access tokens se invalidan (blacklist)
-- ✅ El usuario debe hacer login con la nueva contraseña
-- ✅ Email de confirmación enviado
-
-#### PUT /api/v1/users/me/password
-Cambia la contraseña del usuario autenticado.
-
-**Headers:**
-```
-Authorization: Bearer <access_token>
-```
-
-**Request:**
-```json
-{
-  "old_password": "OldPass123!",
-  "new_password": "NewPass123!"
-}
-```
-
-**Response:** `200 OK`
-```json
-{
-  "message": "password changed successfully, all sessions have been invalidated"
-}
-```
-
-**Seguridad del Cambio:**
-- ✅ Requiere contraseña actual (autenticación adicional)
-- ✅ Todas las sesiones activas se cierran
-- ✅ Todos los access tokens se invalidan (blacklist)
-- ✅ El usuario debe hacer login nuevamente
+#### POST /api/v1/auth/resend-verification
+Reenvía email de verificación.
+- **Requiere**: email
+- **Response**: 200 OK
+- **Condición**: Solo si email no verificado
 
 ### Usuario (Autenticado)
 
+Todos los endpoints requieren header `Authorization: Bearer <access_token>`
+
 #### GET /api/v1/users/me
 Obtiene perfil del usuario actual.
-
-**Headers:**
-```
-Authorization: Bearer <access_token>
-```
-
-**Response:** `200 OK`
-```json
-{
-  "id": "uuid",
-  "email": "user@example.com",
-  "first_name": "John",
-  "last_name": "Doe",
-  "status": "active",
-  "email_verified": false,
-  "mfa_enabled": false,
-  "created_at": "2024-01-01T10:00:00Z",
-  "last_login_at": "2024-01-01T12:00:00Z"
-}
-```
+- **Response**: Datos completos del usuario incluyendo app_id, provider, is_super_admin
 
 #### PUT /api/v1/users/me
-Actualiza perfil del usuario.
+Actualiza perfil del usuario actual.
+- **Campos**: first_name, last_name, phone_number
+
+#### PUT /api/v1/users/me/password
+Cambia contraseña del usuario autenticado.
+- **Requiere**: old_password, new_password
+- **Seguridad**: Cierra todas las sesiones, invalida todos los tokens antiguos por timestamp
+- **Re-autenticación**: Usuario debe hacer login nuevamente
 
 #### GET /api/v1/users/me/roles
-Lista roles del usuario actual.
-
-**Response:** `200 OK`
-```json
-{
-  "roles": ["user", "moderator"]
-}
-```
+Lista roles del usuario actual en su aplicación.
+- **Response**: Array de roles con detalles completos
 
 #### GET /api/v1/users/me/permissions
-Lista permisos del usuario actual.
+Lista permisos efectivos del usuario (agregados de todos sus roles).
+- **Response**: Array de permisos con resource, action, description
 
-**Response:** `200 OK`
-```json
-{
-  "permissions": [
-    "users:read:own",
-    "users:update:own",
-    "users:read:all"
-  ]
-}
-```
+#### GET /api/v1/users/me/sessions
+Lista todas las sesiones activas del usuario.
+- **Response**: Array de sesiones con id, user_agent, ip_address, expires_at, created_at, is_current
+- **Uso**: Ver dónde está logueado, detectar sesiones sospechosas
+
+#### DELETE /api/v1/users/me/sessions
+Cierra todas las sesiones del usuario.
+- **Parámetro query**: exclude_current (boolean, default: false)
+- **Response**: 200 OK con número de sesiones cerradas
+- **Limitación**: Si exclude_current=true requiere session_id en contexto
+
+#### DELETE /api/v1/users/me/sessions/:id
+Cierra una sesión específica por ID.
+- **Requiere**: id (UUID) en path
+- **Response**: 200 OK
+- **Seguridad**: Solo puede cerrar sus propias sesiones (403 si intenta cerrar de otro usuario)
 
 ### Administración (Requiere rol admin)
 
-#### POST /api/v1/admin/roles
-Crea un nuevo rol.
+#### GET /api/v1/admin/users
+Lista usuarios con paginación y búsqueda.
+- **Parámetros**: page (default: 1), limit (default: 20, max: 100), search (email/nombre/apellido)
+- **Response**: Array de usuarios con roles asignados + metadata de paginación
+
+#### GET /api/v1/admin/users/:id
+Obtiene usuario específico por ID.
+- **Response**: Usuario con roles asignados
 
 #### GET /api/v1/admin/roles
-Lista todos los roles.
+Lista todos los roles de una aplicación.
+- **Requiere query**: app_id (UUID)
+- **Response**: Array de roles con permisos
+
+#### POST /api/v1/admin/roles
+Crea un nuevo rol en una aplicación.
+- **Requiere**: app_id (UUID), name (snake_case), description
+- **Constraint**: UNIQUE(app_id, name)
+
+#### GET /api/v1/admin/roles/:id
+Obtiene detalles de un rol específico.
+
+#### PUT /api/v1/admin/roles/:id
+Actualiza descripción de un rol.
+- **Nota**: No se puede cambiar el nombre del rol
+
+#### DELETE /api/v1/admin/roles/:id
+Elimina un rol del sistema.
+- **Restricción**: No se puede eliminar rol con usuarios asignados
+
+#### GET /api/v1/admin/roles/:id/permissions
+Lista permisos de un rol específico.
+
+#### GET /api/v1/admin/users/:userId/roles
+Lista roles de un usuario específico.
 
 #### POST /api/v1/admin/users/:userId/roles/:roleId
-Asigna rol a usuario.
+Asigna un rol a un usuario.
+- **Idempotente**: No falla si el usuario ya tiene el rol
 
 #### DELETE /api/v1/admin/users/:userId/roles/:roleId
-Remueve rol de usuario.
+Remueve un rol de un usuario.
 
-### Health Checks
+### Super Admin (Requiere is_super_admin=true)
 
-#### GET /health
-Verifica estado básico del servicio.
+#### POST /api/v1/super-admin/apps
+Crea una nueva aplicación en el sistema multi-tenant.
+- **Requiere**: name (2-100 chars), description (opcional, max 500 chars)
+- **Response**: 201 Created con app (id, name, client_id, description, timestamps)
+- **Auto-creación**: Trigger crea 4 roles default (super_admin, admin, moderator, user) con permisos
 
-**Response:** `200 OK`
-```json
-{
-  "status": "healthy",
-  "timestamp": "2024-01-01T12:00:00Z"
-}
-```
+#### GET /api/v1/super-admin/apps
+Lista todas las aplicaciones registradas.
+- **Response**: Array de apps con conteo total
 
-#### GET /ready
-Verifica que el servicio esté listo (DB + Redis).
+#### GET /api/v1/super-admin/apps/:id
+Obtiene aplicación específica por ID.
+- **Requiere**: id (UUID) en path
+- **Response**: Detalles completos de la aplicación
 
 ---
 
@@ -486,136 +498,107 @@ Verifica que el servicio esté listo (DB + Redis).
 
 ### Password Hashing
 
-**Algoritmo:** Argon2id
+**Algoritmo:** Argon2id (estándar de la industria para password hashing)
 
 **Configuración:**
-- Memory: 64 MB
+- Memory: 64 MB (65536 KB)
 - Iterations: 3
-- Parallelism: 2
-- Salt: 16 bytes (random)
+- Parallelism: 2 threads
+- Salt: 16 bytes (generado aleatoriamente por usuario)
 - Key length: 32 bytes
-
-**Formato almacenado:**
-```
-$argon2id$v=19$m=65536,t=3,p=2$<salt>$<hash>
-```
+- Formato almacenado: `$argon2id$v=19$m=65536,t=3,p=2$<salt>$<hash>`
 
 ### JWT Tokens
 
-**Algoritmo:** RS256 (RSA con SHA-256)
+**Algoritmo:** RS256 (RSA con SHA-256, asimétrico)
+**Longitud clave:** RSA 4096 bits
 
 **Access Token:**
 - Duración: 15 minutos
-- Contiene: user_id, email, roles, app_id
-- Tipo: "access"
+- Claims: iss (auth-service), sub (user_id), exp, iat, jti, uid, email, roles, app_id, type (access)
+- Uso: Autenticación en requests API
 
 **Refresh Token:**
-- Duración: 7 días
-- Contiene: user_id, tipo
-- Almacenado hasheado en DB (SHA-256)
-- Rotación automática en cada uso
+- Duración: 7 días (168 horas)
+- Claims: iss, sub (user_id), exp, iat, jti, type (refresh)
+- Almacenamiento: Hash SHA-256 en tabla sessions de PostgreSQL
+- Rotación: Automática en cada uso (token anterior se invalida)
+- Uso: Obtener nuevos access tokens sin re-login
 
-**Estructura de Claims:**
-```json
-{
-  "iss": "auth-service",
-  "sub": "user-uuid",
-  "exp": 1234567890,
-  "iat": 1234567890,
-  "jti": "token-uuid",
-  "uid": "user-uuid",
-  "email": "user@example.com",
-  "roles": ["user", "admin"],
-  "app_id": "app-uuid",
-  "type": "access"
-}
-```
+**JWKS Endpoint:**
+- Ubicación: `/.well-known/jwks.json`
+- Formato: JSON Web Key Set con claves públicas
+- Uso: Otros microservicios pueden validar tokens sin compartir clave privada
 
 ### Account Locking
 
-**Política:**
-- 5 intentos fallidos consecutivos
-- Bloqueo automático por 15 minutos
-- Contador se resetea en login exitoso
-- Admin puede desbloquear manualmente
+**Política de intentos fallidos:**
+- Máximo: 5 intentos consecutivos fallidos
+- Duración de bloqueo: 15 minutos automático
+- Reset del contador: Login exitoso o desbloqueo manual
+- Campo DB: `failed_login_attempts`, `account_locked_until`
+- Desbloqueo manual: Admin puede resetear con UPDATE directo en DB
 
 ### CORS
 
-**Configuración por ambiente:**
-```bash
-# .env
-CORS_ALLOWED_ORIGINS=http://localhost:3000,https://app.example.com
-```
-
-**Producción:**
-- Nunca usar wildcard (*) con credentials
-- Especificar orígenes exactos
-- Validar en cada request
+**Configuración:**
+- Variable de entorno: `CORS_ALLOWED_ORIGINS` (lista separada por comas)
+- Desarrollo: `http://localhost:3000,http://localhost:8080`
+- Producción: Lista explícita de dominios permitidos
+- **Importante**: Nunca usar wildcard (*) en producción con credentials
+- Validación: En cada request HTTP
 
 ### Session Security
 
-**Características:**
-- Refresh tokens hasheados (SHA-256)
-- Token rotation en cada refresh
-- Expiración automática
-- Limpieza de sesiones expiradas
-- IP y User-Agent tracking (opcional)
-- **Token Blacklist en Redis**
-- **Invalidación de sesiones al cambiar contraseña**
+**Características de seguridad:**
+- Refresh tokens hasheados con SHA-256 antes de almacenar
+- Token rotation automática en cada refresh (previene replay attacks)
+- Expiración automática: 7 días desde creación
+- Limpieza automática: Sesiones expiradas eliminadas por índice
+- Metadata tracking: IP address, User-Agent (opcional)
+- App isolation: Campo `app_id` en sesiones
+- Token Blacklist: Sistema de dos niveles (individual + por timestamp)
+- Invalidación masiva: Al cambiar/resetear contraseña
 
 ### Token Blacklist (Redis)
 
-**Implementación Corregida (v1.1):**
+**Sistema de Invalidación por Timestamp (v1.5):**
 
-El sistema usa un enfoque de "invalidación por timestamp" que permite:
-- ✅ Invalidar todos los tokens emitidos ANTES de un momento específico
-- ✅ Permitir nuevos tokens emitidos DESPUÉS del cambio de contraseña
-- ✅ Evitar bloqueos permanentes del usuario
+Implementa blacklist de dos niveles para máxima seguridad:
 
-**Estructura en Redis:**
-```
-blacklist:token:<token_hash>  → "1" (TTL: hasta expiración del token)
-blacklist:user:<user_id>      → timestamp_invalidacion (TTL: 24h)
-```
+**Nivel 1 - Tokens individuales:**
+- Key Redis: `blacklist:token:<sha256_hash>`
+- Valor: "1"
+- TTL: Hasta expiración natural del token
+- Uso: Logout específico
 
-**Lógica de Blacklist de Usuario:**
-```go
-// Al cambiar/resetear contraseña
-1. Guardar timestamp ACTUAL en Redis: blacklist:user:<user_id> = NOW()
-2. TTL de 24h (más largo que el lifetime máximo de tokens)
-3. Eliminar todas las sesiones activas
+**Nivel 2 - Invalidación por usuario:**
+- Key Redis: `blacklist:user:<user_id>`
+- Valor: timestamp_unix de invalidación
+- TTL: 24 horas
+- Uso: Cambio/reset de contraseña
 
-// Al validar token
-1. Extraer IssuedAt del token
-2. Obtener timestamp de invalidación de Redis
-3. Si token.IssuedAt < invalidation_timestamp → RECHAZAR
-4. Si token.IssuedAt >= invalidation_timestamp → ACEPTAR
-```
+**Lógica de validación:**
+1. Extraer `IssuedAt` (iat) del token JWT
+2. Verificar si hash del token está en blacklist individual → RECHAZAR
+3. Obtener timestamp de invalidación de `blacklist:user:<user_id>`
+4. Si `token.IssuedAt < invalidation_timestamp` → RECHAZAR
+5. Si `token.IssuedAt >= invalidation_timestamp` → ACEPTAR
+6. Si pasa todos los checks → Token válido
 
-**Ejemplo de Flujo:**
-```
-10:00 - Usuario hace login → Token emitido (IssuedAt: 10:00)
-10:30 - Usuario resetea contraseña → Blacklist timestamp: 10:30
-10:31 - Token viejo (10:00) → RECHAZADO (10:00 < 10:30)
-10:32 - Usuario hace login → Nuevo token (IssuedAt: 10:32)
-10:33 - Token nuevo (10:32) → ACEPTADO (10:32 >= 10:30)
-```
+**Beneficios del sistema:**
+- ✅ Invalida todos los tokens emitidos ANTES de cambio de contraseña
+- ✅ Permite nuevos tokens emitidos DESPUÉS del cambio
+- ✅ Evita bloqueos permanentes del usuario
+- ✅ Auto-limpieza con TTL de Redis
+- ✅ Performance: O(1) lookup en Redis
 
-**Flujo de Validación Completo:**
-```
-1. Request con access token
-2. Middleware extrae y valida JWT
-3. Verifica si token específico está en blacklist individual
-4. Verifica si user_id está en blacklist por timestamp
-5. Si cualquier check falla → 401 Unauthorized
-6. Si pasa todos los checks → Continúa con el request
-```
-
-**Corrección Crítica Aplicada:**
-
-En la versión inicial, había un bug donde se guardaba un timestamp FUTURO (NOW + 24h),
-lo que invalidaba TODOS los tokens incluyendo los nuevos. Esto fue corregido para
-guardar el timestamp ACTUAL, permitiendo que solo los tokens antiguos sean invalidados.
+**Flujo típico:**
+1. 10:00 - Login → Token A (IssuedAt: 10:00)
+2. 10:30 - Reset password → Blacklist timestamp: 10:30, todas las sesiones cerradas
+3. 10:31 - Token A usado → RECHAZADO (10:00 < 10:30)
+4. 10:32 - Nuevo login → Token B (IssuedAt: 10:32)
+5. 10:33 - Token B usado → ACEPTADO (10:32 >= 10:30)
 
 ---
 
@@ -623,53 +606,57 @@ guardar el timestamp ACTUAL, permitiendo que solo los tokens antiguos sean inval
 
 ### Variables de Entorno
 
-```bash
-# Server
-SERVER_PORT=8080
-ENVIRONMENT=development
+**Server:**
+- `SERVER_PORT`: Puerto HTTP (default: 8080)
+- `ENVIRONMENT`: development | staging | production
 
-# Database
-DB_HOST=postgres
-DB_PORT=5432
-DB_USER=auth
-DB_PASSWORD=auth
-DB_NAME=authdb
-DB_SSLMODE=disable
+**Database (PostgreSQL):**
+- `DB_HOST`: Hostname (default: postgres para Docker)
+- `DB_PORT`: Puerto (default: 5432)
+- `DB_USER`: Usuario de la base de datos
+- `DB_PASSWORD`: Contraseña (⚠️ usar secrets en producción)
+- `DB_NAME`: Nombre de la base de datos (default: authdb)
+- `DB_SSLMODE`: disable | require | verify-ca | verify-full
 
-# Redis
-REDIS_HOST=redis
-REDIS_PORT=6379
-REDIS_PASSWORD=
-REDIS_DB=0
+**Redis:**
+- `REDIS_HOST`: Hostname (default: redis para Docker)
+- `REDIS_PORT`: Puerto (default: 6379)
+- `REDIS_PASSWORD`: Contraseña (vacío para dev)
+- `REDIS_DB`: Número de DB (default: 0)
 
-# JWT
-JWT_PRIVATE_KEY_PATH=./keys/private.pem
-JWT_PUBLIC_KEY_PATH=./keys/public.pem
-JWT_ACCESS_EXPIRY=15m
-JWT_REFRESH_EXPIRY=168h
-JWT_ISSUER=auth-service
+**JWT:**
+- `JWT_PRIVATE_KEY_PATH`: Path a clave privada RSA (default: ./keys/private.pem)
+- `JWT_PUBLIC_KEY_PATH`: Path a clave pública RSA (default: ./keys/public.pem)
+- `JWT_ACCESS_EXPIRY`: Duración access token (default: 15m)
+- `JWT_REFRESH_EXPIRY`: Duración refresh token (default: 168h)
+- `JWT_ISSUER`: Issuer del token (default: auth-service)
 
-# Auth
-AUTH_MAX_FAILED_LOGINS=5
-AUTH_LOCK_DURATION=15m
+**Auth:**
+- `AUTH_MAX_FAILED_LOGINS`: Máximo intentos fallidos antes de bloquear (default: 5)
+- `AUTH_LOCK_DURATION`: Duración del bloqueo (default: 15m)
 
-# CORS
-CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8080
-```
+**CORS:**
+- `CORS_ALLOWED_ORIGINS`: Lista de orígenes permitidos separados por coma
+
+**Email (CloudCentinel):**
+- `EMAIL_SERVICE_URL`: URL del servicio de email (default: https://api.cloudcentinel.com/email/send)
+- `EMAIL_ENABLED`: Habilitar/deshabilitar servicio de email (default: true)
+- `EMAIL_TIMEOUT`: Timeout para requests de email (default: 10s)
+
+**Nota:** Las URLs de verificación/reset y el remitente se configuran en el email-service, no aquí.
 
 ### Generar Claves RSA
 
-```bash
-# Automático
-make keys
+**Automático (recomendado):**
+- Comando: `make keys`
+- Genera: RSA 4096 bits en ./keys/private.pem y ./keys/public.pem
+- Permisos: 600 (private), 644 (public)
 
-# Manual
-mkdir -p keys
-openssl genrsa -out keys/private.pem 4096
-openssl rsa -in keys/private.pem -pubout -out keys/public.pem
-chmod 600 keys/private.pem
-chmod 644 keys/public.pem
-```
+**Manual:**
+- Generar privada: `openssl genrsa -out keys/private.pem 4096`
+- Extraer pública: `openssl rsa -in keys/private.pem -pubout -out keys/public.pem`
+- Permisos: `chmod 600 keys/private.pem && chmod 644 keys/public.pem`
+- **Importante**: Nunca commitear claves en git (ya está en .gitignore)
 
 ---
 
@@ -677,244 +664,279 @@ chmod 644 keys/public.pem
 
 ### Comandos Make
 
-```bash
-# Setup completo
-make quickstart              # Con credenciales por defecto
-make quickstart-custom       # Con credenciales personalizadas
+**Setup completo:**
+- `make quickstart` - Setup automático con credenciales por defecto (admin@test.com / Admin123!)
+- `make quickstart-custom` - Setup con credenciales personalizadas (interactivo)
+  - Ejecuta: generación de claves, inicio de Docker, migraciones, creación de super admin
 
-# Desarrollo
-make build                   # Compilar
-make run                     # Ejecutar
-make dev                     # Setup entorno desarrollo
+**Desarrollo:**
+- `make build` - Compilar binario Go
+- `make run` - Ejecutar aplicación
+- `make dev` - Setup entorno de desarrollo completo
 
-# Docker
-make docker-up               # Iniciar servicios
-make docker-down             # Detener servicios
-make docker-logs             # Ver logs
+**Docker:**
+- `make docker-up` - Iniciar PostgreSQL, Redis y auth-service
+- `make docker-down` - Detener y remover contenedores
+- `make docker-logs` - Ver logs de todos los servicios
+- `make logs` - Ver logs solo de auth-service
 
-# Base de datos
-make migrate                 # Ejecutar migraciones
-make db-status               # Ver estado DB
-make db-reset                # Resetear DB (⚠️ borra datos)
+**Base de datos:**
+- `make migrate` - Ejecutar migraciones SQL (migrations/001_initial.sql)
+- `make db-status` - Ver estado de conexión DB
+- `make db-reset` - ⚠️ Resetear DB completamente (borra todos los datos)
 
-# Gestión
-make status                  # Estado del sistema
-make stop                    # Detener todo
-make restart                 # Reiniciar todo
-make logs                    # Ver logs de la app
+**Gestión:**
+- `make status` - Estado general del sistema (servicios, DB, Redis)
+- `make stop` - Detener todos los servicios
+- `make restart` - Reiniciar todos los servicios
+- `make keys` - Generar claves RSA
 
-# Utilidades
-make admin-login             # Login rápido con admin
-make create-admin            # Promover usuario a admin
-make help                    # Ver todos los comandos
-```
+**Utilidades:**
+- `make admin-login` - Login rápido con credenciales de admin (retorna token)
+- `make create-admin` - Promover usuario existente a admin
+- `make help` - Ver lista completa de comandos
 
-### Estructura de Desarrollo
+### Flujo de Desarrollo
 
-```bash
-# 1. Iniciar servicios
-make docker-up
+**Setup inicial:**
+1. Clonar repositorio
+2. Ejecutar `make quickstart` o `make quickstart-custom`
+3. Verificar con `make status`
 
-# 2. Ejecutar migraciones
-make migrate
+**Desarrollo activo:**
+1. Iniciar servicios: `make docker-up`
+2. Aplicar migraciones: `make migrate`
+3. Compilar: `make build`
+4. Ejecutar: `make run`
+5. Probar: `curl http://localhost:8080/health`
 
-# 3. Compilar y ejecutar
-make build
-make run
-
-# 4. En otra terminal, probar
-curl http://localhost:8080/health
-```
-
-### Hot Reload (Opcional)
-
-```bash
-# Instalar air
-go install github.com/cosmtrek/air@latest
-
-# Ejecutar con hot reload
-air
-```
+**Hot Reload (opcional):**
+- Instalar Air: `go install github.com/cosmtrek/air@latest`
+- Ejecutar: `air` (recarga automática en cambios de código)
 
 ---
 
 ## Testing
 
-### Test Automatizado de Reset de Contraseña
+### Scripts de Testing
 
-El proyecto incluye un script completo para probar el flujo de reset:
+**test-reset-flow.sh**
+- Script automatizado para probar flujo completo de reset de contraseña
+- Valida: Registro → Login → Reset → Token invalidation → Nuevo login
+- Verifica que tokens antiguos se invaliden y nuevos tokens funcionen
+- Confirma que contraseña vieja sea rechazada
+- Ejecutar: `./test-reset-flow.sh`
 
-```bash
-./test-reset-flow.sh
-```
-
-**Este script prueba:**
-1. ✅ Registro de usuario
-2. ✅ Login inicial con contraseña original
-3. ✅ Token original funciona
-4. ✅ Solicitud de reset de contraseña
-5. ✅ Reset de contraseña ejecutado
-6. ✅ Token original INVALIDADO (debe fallar)
-7. ✅ Login con nueva contraseña funciona
-8. ✅ Nuevo token FUNCIONA correctamente
-9. ✅ Contraseña vieja rechazada
-
-**Resultado esperado:**
-```
-✅ ¡TODOS LOS TESTS PASARON!
-
-📊 Resumen:
-  • Token original invalidado: ✅
-  • Nuevo token funciona: ✅
-  • Contraseña vieja rechazada: ✅
-  • Seguridad del reset: ✅
-```
+**Puntos de validación:**
+1. Registro de usuario exitoso
+2. Login inicial con contraseña original
+3. Token original funciona para requests autenticados
+4. Solicitud de reset de contraseña
+5. Reset ejecutado correctamente
+6. Token original INVALIDADO (debe fallar con 401)
+7. Login con nueva contraseña funciona
+8. Nuevo token FUNCIONA correctamente
+9. Contraseña vieja rechazada
 
 ### Testing Manual
 
-Ver `TESTING_RBAC.md` para guía completa de testing.
+**Documentación completa:**
+- Ver `TESTING_RBAC.md` para guía detallada de testing de roles y permisos
+- Ver `docs/openapi.yaml` para especificación completa de endpoints
 
-**Flujo básico:**
+**Flujo básico de testing:**
+1. Registrar usuario con POST /api/v1/auth/register (requiere app_id, email, password, first_name, last_name)
+2. Login con POST /api/v1/auth/login (requiere email, password, app_id)
+3. Usar access_token en header `Authorization: Bearer <token>`
+4. Probar endpoints autenticados (GET /api/v1/users/me, etc.)
+5. Ver roles con GET /api/v1/users/me/roles
+6. Ver permisos con GET /api/v1/users/me/permissions
 
-```bash
-# 1. Registrar usuario
-curl -X POST http://localhost:8080/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "test@example.com",
-    "password": "Test123!",
-    "first_name": "Test",
-    "last_name": "User"
-  }'
+**Testing Multi-Tenant:**
+1. Crear super admin con POST /api/v1/setup/super-admin
+2. Crear aplicación 1 con POST /api/v1/super-admin/apps
+3. Crear aplicación 2 con POST /api/v1/super-admin/apps
+4. Registrar mismo email en ambas apps con diferentes passwords
+5. Verificar aislamiento completo (diferentes user_id, roles, sesiones)
 
-# 2. Login
-TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "test@example.com",
-    "password": "Test123!",
-    "app_id": "00000000-0000-0000-0000-000000000000"
-  }' | jq -r '.tokens.access_token')
+### Herramientas de Testing
 
-# 3. Ver perfil
-curl -X GET http://localhost:8080/api/v1/users/me \
-  -H "Authorization: Bearer $TOKEN"
+**cURL:**
+- Testing directo desde terminal
+- Útil para scripts automatizados
+- Ver ejemplos en `TESTING_RBAC.md`
 
-# 4. Ver roles
-curl -X GET http://localhost:8080/api/v1/users/me/roles \
-  -H "Authorization: Bearer $TOKEN"
-```
+**Postman:**
+- Importar colección desde `docs/postman_collection.json` (si existe)
+- Permite guardar environments con tokens
+- Testing interactivo de la API
 
-### Testing con Postman
-
-Importar colección desde `docs/postman_collection.json` (si existe).
+**Herramientas recomendadas:**
+- jq: Parsear respuestas JSON
+- httpie: Alternativa más amigable a cURL
+- Insomnia: Alternativa a Postman
 
 ---
 
 ## Deployment
 
-### Docker Compose (Staging)
+### Docker Compose (Staging/Producción)
 
-```bash
-# Producción con Docker Compose
-docker-compose -f docker-compose.prod.yml up -d
-```
+**Archivo:** `docker-compose.prod.yml` (si existe)
+**Comando:** `docker-compose -f docker-compose.prod.yml up -d`
+
+**Servicios incluidos:**
+- auth-service (aplicación Go)
+- PostgreSQL 16 con persistencia
+- Redis 7 para blacklist
 
 ### Kubernetes (Producción)
 
-Ver `k8s/` directory para manifests.
+**Manifests:** Ver directorio `k8s/` (si existe)
 
-**Componentes:**
-- Deployment (3 replicas)
-- Service (ClusterIP)
-- Ingress (HTTPS)
-- ConfigMap (configuración)
-- Secret (credenciales)
-- PVC (PostgreSQL data)
+**Componentes recomendados:**
+- Deployment con 3+ replicas para HA
+- Service tipo ClusterIP
+- Ingress con TLS/HTTPS
+- ConfigMap para configuración no sensible
+- Secret para credenciales (DB_PASSWORD, REDIS_PASSWORD, JWT keys)
+- PersistentVolumeClaim para PostgreSQL data
+- HorizontalPodAutoscaler basado en CPU/memoria
 
 ### Consideraciones de Producción
 
-1. **Base de Datos:**
-   - Usar PostgreSQL managed (AWS RDS, GCP Cloud SQL)
-   - Backups automáticos
-   - Read replicas para escalabilidad
+**1. Base de Datos:**
+- Usar PostgreSQL managed (AWS RDS, GCP Cloud SQL, Azure Database)
+- Habilitar backups automáticos diarios con retención de 7-30 días
+- Configurar read replicas para escalabilidad de lectura
+- Habilitar SSL/TLS (DB_SSLMODE=require)
+- Connection pooling ya configurado (25 max open, 5 idle)
 
-2. **Redis:**
-   - Usar Redis managed (AWS ElastiCache, GCP Memorystore)
-   - Cluster mode para HA
+**2. Redis:**
+- Usar Redis managed (AWS ElastiCache, GCP Memorystore, Azure Cache)
+- Cluster mode para alta disponibilidad
+- Persistence habilitada (AOF o RDB)
+- Maxmemory policy: allkeys-lru para auto-cleanup
 
-3. **Claves RSA:**
-   - Rotar periódicamente
-   - Almacenar en secrets manager (AWS Secrets Manager, Vault)
-   - Nunca commitear en git
+**3. Claves RSA:**
+- Rotar claves cada 90-180 días
+- Almacenar en secrets manager (AWS Secrets Manager, HashiCorp Vault, GCP Secret Manager)
+- Nunca commitear en git (.gitignore ya configurado)
+- Generar claves de 4096 bits mínimo
 
-4. **Logs:**
-   - Centralizar con ELK, Datadog, CloudWatch
-   - Structured logging (JSON)
-   - Log rotation
+**4. Logs y Observabilidad:**
+- Centralizar logs con ELK Stack, Datadog, CloudWatch, o Loki
+- Structured logging en formato JSON
+- Log rotation automático
+- Niveles: ERROR, WARN, INFO (no DEBUG en producción)
 
-5. **Monitoring:**
-   - Prometheus + Grafana
-   - Health checks en load balancer
-   - Alertas para errores críticos
+**5. Monitoring y Alertas:**
+- Métricas con Prometheus + Grafana
+- Health checks en /health y /ready para load balancer
+- Alertas para: CPU > 80%, memoria > 85%, errores > 5%, DB conexiones > 90%
+- Uptime monitoring externo (Pingdom, UptimeRobot)
 
-6. **Seguridad:**
-   - HTTPS obligatorio
-   - Rate limiting activo
-   - WAF (Web Application Firewall)
-   - DDoS protection
+**6. Seguridad:**
+- HTTPS obligatorio (TLS 1.2+)
+- Rate limiting activo por IP (nginx, Kong, API Gateway)
+- WAF (Web Application Firewall) habilitado
+- DDoS protection en capa de red
+- Firewall rules: Solo puertos 80/443 expuestos
+- Secrets rotation periódica
+
+**7. Escalabilidad:**
+- Stateless design permite horizontal scaling
+- Redis para estado compartido (blacklist)
+- Connection pooling configurado
+- Consider CDN para assets estáticos
 
 ---
 
 ## Troubleshooting
 
-### Problema: "CORS error"
+### CORS Error
+
+**Síntoma:** Error de CORS en navegador al hacer requests desde frontend
+
+**Causas:**
+- `CORS_ALLOWED_ORIGINS` no incluye el origen del frontend
+- Origen mal formado (sin protocolo o con trailing slash)
 
 **Solución:**
-```bash
-# Verificar CORS_ALLOWED_ORIGINS en .env
-CORS_ALLOWED_ORIGINS=http://localhost:3000,https://app.example.com
+1. Verificar variable de entorno `CORS_ALLOWED_ORIGINS` incluye origen exacto
+2. Formato correcto: `http://localhost:3000,https://app.example.com` (sin trailing slash)
+3. Reiniciar servicio con `make restart`
 
-# Reiniciar servicio
-make restart
-```
+### Database Connection Failed
 
-### Problema: "Database connection failed"
+**Síntoma:** Servicio no inicia o falla en /ready endpoint
+
+**Causas:**
+- PostgreSQL no corriendo
+- Credenciales incorrectas
+- Network issues en Docker
 
 **Solución:**
-```bash
-# Verificar que PostgreSQL esté corriendo
-docker-compose ps postgres
+1. Verificar PostgreSQL corriendo: `docker-compose ps postgres`
+2. Ver logs de PostgreSQL: `docker-compose logs postgres`
+3. Reiniciar PostgreSQL: `docker-compose restart postgres`
+4. Verificar variables: DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME
+5. Ping manual desde contenedor: `docker-compose exec auth-service ping postgres`
 
-# Ver logs
-docker-compose logs postgres
+### Invalid Token / 401 Unauthorized
 
-# Reiniciar
-docker-compose restart postgres
-```
-
-### Problema: "Invalid token"
+**Síntoma:** Requests autenticados rechazan con 401
 
 **Causas comunes:**
-1. Token expirado (access token dura 15 min)
-2. Claves RSA cambiaron
-3. Token type incorrecto (usando refresh en lugar de access)
+1. Access token expirado (duración: 15 minutos)
+2. Claves RSA cambiaron (se regeneraron después de generar el token)
+3. Token type incorrecto (usando refresh token en lugar de access)
+4. Usuario en blacklist por cambio de contraseña
+5. Sesión eliminada
 
 **Solución:**
-```bash
-# Hacer refresh
-curl -X POST http://localhost:8080/api/v1/auth/refresh \
-  -d '{"refresh_token": "..."}'
-```
+1. Verificar expiración del token (claim `exp`)
+2. Hacer refresh con POST /api/v1/auth/refresh usando refresh_token
+3. Si refresh falla, hacer re-login con POST /api/v1/auth/login
+4. Verificar claves RSA no cambiaron: `ls -la keys/`
 
-### Problema: "Account locked"
+### Account Locked
+
+**Síntoma:** Login rechazado con "Account locked" o 423 status
+
+**Causas:**
+- 5 intentos fallidos de login consecutivos
 
 **Solución:**
-```bash
-# Esperar 15 minutos o desbloquear manualmente
-docker-compose exec postgres psql -U auth -d authdb
-UPDATE users SET failed_logins=0, locked_until=NULL WHERE email='user@example.com';
-```
+1. Esperar 15 minutos (desbloqueo automático)
+2. Desbloqueo manual por admin:
+   - Conectar a DB: `docker-compose exec postgres psql -U auth -d authdb`
+   - Ejecutar: `UPDATE users SET failed_login_attempts=0, account_locked_until=NULL WHERE email='user@example.com';`
+3. Verificar desbloqueo: `SELECT email, failed_login_attempts, account_locked_until FROM users WHERE email='user@example.com';`
+
+### Redis Connection Failed
+
+**Síntoma:** Token blacklist no funciona, errores de Redis en logs
+
+**Solución:**
+1. Verificar Redis corriendo: `docker-compose ps redis`
+2. Ver logs: `docker-compose logs redis`
+3. Reiniciar: `docker-compose restart redis`
+4. Test manual: `docker-compose exec redis redis-cli PING` (debe retornar PONG)
+
+### Migration Failed
+
+**Síntoma:** Errores al ejecutar `make migrate`
+
+**Causas:**
+- Migraciones ya aplicadas
+- Cambios manuales en DB
+
+**Solución:**
+1. Verificar estado de migraciones en tabla `schema_migrations` (si existe)
+2. Ver último error en logs de PostgreSQL
+3. Para desarrollo: `make db-reset` (⚠️ borra todos los datos)
+4. Re-aplicar: `make migrate`
 
 ---
 
@@ -923,333 +945,85 @@ UPDATE users SET failed_logins=0, locked_until=NULL WHERE email='user@example.co
 ### Documentación Principal
 
 - `README.md` - Overview general y quick start
-- `CLAUDE.md` - 🎯 Este documento (documentación central completa)
-- `CHANGELOG.md` - Historial de versiones y cambios
+- `CLAUDE.md` - Este documento (documentación central completa)
+- `CHANGELOG.md` - Historial de versiones y cambios (si existe)
 
-### Documentación Técnica (`docs/`)
+### Documentación Técnica
 
-- `docs/architecture.md` - Arquitectura detallada y diagramas del sistema
-- `docs/sequence-diagrams.md` - Diagramas de secuencia de flujos principales (Mermaid)
-- `docs/roadmap.md` - Plan de desarrollo y features pendientes
-- `docs/openapi.yaml` - Especificación completa de la API (OpenAPI 3.0)
+- `docs/architecture.md` - Arquitectura detallada y diagramas del sistema (si existe)
+- `docs/sequence-diagrams.md` - Diagramas de secuencia Mermaid de flujos principales (si existe)
+- `docs/roadmap.md` - Plan de desarrollo y features pendientes (si existe)
+- `docs/openapi.yaml` - **Especificación completa de la API (OpenAPI 3.0)** - Referencia principal
 
 ### Scripts de Automatización
 
-- `scripts/full-setup.sh` - Setup automatizado completo del sistema (incluye generación de claves y creación de admin)
+- `scripts/full-setup.sh` - Setup automatizado completo (claves RSA + Docker + migraciones + super admin)
+- `scripts/generate-keys.sh` - Generación de claves RSA 4096 bits
+- `scripts/create-first-admin.sh` - Creación de super administrador inicial
+- `test-reset-flow.sh` - Testing automatizado de flujo de reset de contraseña
 
 ### Migraciones SQL
 
-- `migrations/001_initial.sql` - Schema inicial (tablas, índices, constraints)
-- `migrations/002_seed_default_roles.sql` - Roles, permisos y trigger de auto-asignación
-- `migrations/003_add_email_verification.sql` - Campos para verificación de email
+**Estructura consolidada:**
+- `migrations/001_initial.sql` - **Schema completo del sistema** (tablas, índices, constraints, triggers, roles default)
+  - Incluye: apps, users, roles, permissions, role_permissions, user_roles, sessions
+  - 4 roles default por app: super_admin, admin, moderator, user
+  - 14 permisos granulares
+  - Triggers de auto-asignación de roles
+  - Índices optimizados para performance
+
+**Nota:** Todas las migraciones futuras deben ser archivos separados (002, 003, etc.) para modificaciones incrementales
 
 ---
 
 ## Contacto y Soporte
 
-**Repositorio:** [GitHub URL]
+**Repositorio:** [Especificar URL de GitHub]
 **Documentación:** Ver carpeta `docs/`
-**Issues:** [GitHub Issues URL]
+**Issues:** [Especificar URL de GitHub Issues]
 
 ---
 
 ## Licencia
 
-[Especificar licencia]
+[Especificar licencia del proyecto]
 
 ---
 
-## Code Review - Issues Identificados
+## Historial de Correcciones y Mejoras
 
-### 🔴 Issues Corregidos en cmd/main.go
+### Mejoras de Código y Seguridad Aplicadas
 
-#### 1. Log Injection (CWE-117)
-**Líneas:** 229-230, 235-236
-**Problema:** Logs con input no sanitizado pueden permitir log injection
-**Solución:** ✅ Sanitizar mensajes de error antes de loggear
-```go
-// Antes
-log.Printf("❌ Server failed to start: %v", err)
+**cmd/main.go (4 issues corregidos):**
+1. Log Injection (CWE-117): Sanitización de mensajes de error en logs
+2. Error Handling en Goroutine: Uso de stop() para shutdown graceful
+3. Resource Cleanup: Verificación de errores al cerrar conexiones
+4. Connection Pooling: Configurado (25 max open, 5 idle, 5min lifetime)
 
-// Después
-log.Printf("Error handling request [%s %s]: %v", c.Method(), c.Path(), err)
-```
+**internal/config/config.go (3 mejoras):**
+1. Error Handling: Logging de warnings en parseo de int/duration
+2. Log Injection: No exponer valores inválidos en logs
+3. SafeDSN Method: Agregado para logging sin password
 
-#### 2. Error Handling en Goroutine
-**Línea:** 136-137
-**Problema:** Uso de log.Fatalf en goroutine termina el programa abruptamente
-**Solución:** ✅ Usar stop() para shutdown graceful
-```go
-if err := app.Listen(addr); err != nil {
-    log.Printf("❌ Server failed to start: %v", err)
-    stop() // Trigger graceful shutdown
-}
-```
+**internal/domain/ (3 mejoras):**
+1. Documentación: Agregados comentarios GoDoc a structs públicos
+2. Naming Clarity: RefreshToken renombrado a RefreshTokenHash
+3. Validation Tags: Agregadas tags de validación a structs
 
-#### 3. Resource Cleanup
-**Líneas:** 200-223
-**Problema:** No se verifica error al cerrar conexiones
-**Solución:** ✅ Verificar errores de Close()
-```go
-if err := db.PingContext(ctx); err != nil {
-    if closeErr := db.Close(); closeErr != nil {
-        log.Printf("Error closing database: %v", closeErr)
-    }
-    return nil, fmt.Errorf("failed to ping: %w", err)
-}
-```
+**Seguridad de Scripts:**
+- SQL Injection: Scripts bash necesitan usar parámetros preparados
+- Exposición de Credenciales: Passwords/tokens no deben mostrarse en output
+- Error Handling: Comandos OpenSSL necesitan validación de errores
 
-#### 4. Performance - Connection Pooling
-**Líneas:** 183-186, 205-210
-**Estado:** ✅ Ya implementado correctamente
-```go
-db.SetMaxOpenConns(25)
-db.SetMaxIdleConns(5)
-db.SetConnMaxLifetime(5 * time.Minute)
-```
+**Recomendaciones Pendientes:**
+- Implementar rate limiting activo por IP y por usuario
+- Agregar audit logging para acciones sensibles
+- Implementar CSRF protection si se usa en navegadores
+- Validación más estricta de UUIDs en handlers
+- Usar secrets manager en producción para credenciales
+- Rotación periódica de claves RSA (cada 90-180 días)
 
-### 🔴 Seguridad Crítica
-
-#### 5. SQL Injection Potencial
-**Archivo:** `scripts/create-first-admin.sh`
-**Línea:** 54-55
-**Problema:** Uso de variables sin sanitizar en queries SQL
-```bash
-USER_ID=$(docker-compose exec -T postgres psql -U auth -d authdb -t -c "SELECT id FROM users WHERE email = '$EMAIL';")
-```
-**Solución:** Usar parámetros preparados o escapar variables
-```bash
-USER_ID=$(docker-compose exec -T postgres psql -U auth -d authdb -t -c "SELECT id FROM users WHERE email = \$1;" -- "$EMAIL")
-```
-
-#### 2. Exposición de Passwords en Logs
-**Archivo:** `scripts/create-first-admin.sh`
-**Línea:** 117-118
-**Problema:** Password mostrado en texto plano en output
-```bash
-echo "   Password: $PASSWORD"
-```
-**Solución:** Ocultar o remover del output
-```bash
-echo "   Password: ********"
-```
-
-#### 3. Exposición de Access Tokens
-**Archivo:** `scripts/create-first-admin.sh`
-**Línea:** 123-124
-**Problema:** Token completo expuesto en terminal
-**Solución:** Mostrar solo primeros caracteres o guardar en archivo seguro
-
-### 🟡 Seguridad Media
-
-#### 4. Manejo de Errores en OpenSSL
-**Archivo:** `scripts/generate-keys.sh`
-**Línea:** 10-14
-**Problema:** Comandos OpenSSL sin validación de errores
-```bash
-openssl genrsa -out "$KEYS_DIR/private.pem" 4096
-openssl rsa -in "$KEYS_DIR/private.pem" -pubout -out "$KEYS_DIR/public.pem"
-```
-**Solución:** Agregar validación
-```bash
-if ! openssl genrsa -out "$KEYS_DIR/private.pem" 4096; then
-    echo "Error generando clave privada"
-    exit 1
-fi
-```
-
-#### 5. Variables No Utilizadas
-**Archivo:** `scripts/create-first-admin.sh`
-**Línea:** 72-73
-**Problema:** Variable `PROMO_RESULT` declarada pero no usada
-**Solución:** Remover o usar para validación
-
-### 🟡 Issues en compose.yaml
-
-#### 6. Credenciales Hardcodeadas
-**Líneas:** 14-20, 50-52
-**Problema:** Passwords en texto plano en compose.yaml
-**Recomendación:** Usar secrets o variables de entorno
-```yaml
-# Mejor práctica
-environment:
-  - DB_PASSWORD=${DB_PASSWORD:-auth}
-  - REDIS_PASSWORD=${REDIS_PASSWORD}
-```
-
-#### 7. Health Checks
-**Líneas:** 60-63
-**Estado:** ✅ Implementado correctamente
-```yaml
-healthcheck:
-  test: ["CMD-SHELL", "pg_isready -U auth -d authdb"]
-  interval: 10s
-  timeout: 5s
-  retries: 5
-```
-
-### 🟡 Issues en docs/openapi.yaml
-
-#### 8. Documentación Incompleta
-**Líneas:** 740-787, 810-836
-**Problema:** Algunos endpoints sin descripción completa
-**Recomendación:** Agregar ejemplos y descripciones detalladas
-
-#### 9. Credenciales en Ejemplos
-**Líneas:** 843-844, 847-848
-**Problema:** Passwords de ejemplo en documentación
-**Solución:** Usar placeholders genéricos
-```yaml
-example:
-  email: "user@example.com"
-  password: "YourSecurePassword123!"
-```
-
-#### 10. Naming Inconsistente
-**Línea:** 771-779
-**Problema:** Nombres de parámetros inconsistentes
-**Recomendación:** Estandarizar convención de nombres
-
-### ✅ Issues Corregidos en internal/config/config.go
-
-#### 11. Error Handling en Parseo
-**Líneas:** 107-137
-**Problema:** Errores silenciosos al parsear int/duration
-**Solución:** ✅ Logging de warnings y manejo explícito
-```go
-if err != nil {
-    fmt.Printf("Warning: Invalid value for %s, using default\n", key)
-    return defaultValue
-}
-```
-
-#### 12. Log Injection en Config
-**Líneas:** 108-116
-**Problema:** Valores de env sin sanitizar en logs
-**Solución:** ✅ No exponer valores inválidos directamente
-
-#### 13. SafeDSN Method
-**Línea:** 88-90
-**Mejora:** ✅ Agregado método SafeDSN() sin password para logging
-```go
-func (c *DatabaseConfig) SafeDSN() string {
-    return fmt.Sprintf("host=%s port=%s user=%s dbname=%s",
-        c.Host, c.Port, c.User, c.DBName)
-}
-```
-
-### ✅ Issues Corregidos en internal/domain/
-
-#### 14. Documentación de Structs
-**Archivos:** role.go, session.go
-**Problema:** Falta documentación en tipos públicos
-**Solución:** ✅ Agregados comentarios GoDoc
-```go
-// Role represents a role in the RBAC system
-type Role struct { ... }
-```
-
-#### 15. Naming Clarity
-**Archivo:** session.go línea 12
-**Problema:** RefreshToken ambiguo (¿es el token o el hash?)
-**Solución:** ✅ Renombrado a RefreshTokenHash
-```go
-RefreshTokenHash string `json:"-" db:"refresh_token_hash"`
-```
-
-#### 16. Validation Tags
-**Archivo:** role.go
-**Mejora:** ✅ Agregadas validation tags a structs
-```go
-Name string `json:"name" validate:"required,min=2,max=100"`
-```
-
-### 🔵 Mejoras de Código
-
-#### 17. Validación de Input
-**Archivos:** Múltiples handlers
-**Problema:** Algunos endpoints podrían beneficiarse de validación más estricta
-**Recomendación:**
-- Validar UUIDs antes de queries
-- Validar rangos de valores
-- Sanitizar inputs de usuario
-
-#### 7. Error Handling Consistente
-**Problema:** Algunos errores retornan mensajes genéricos
-**Recomendación:**
-- Usar códigos de error consistentes
-- Logging estructurado de errores
-- No exponer detalles internos al cliente
-
-#### 8. Connection Pooling
-**Archivo:** `cmd/main.go`
-**Estado:** ✅ Implementado correctamente
-```go
-db.SetMaxOpenConns(25)
-db.SetMaxIdleConns(5)
-db.SetConnMaxLifetime(5 * time.Minute)
-```
-
-### 📋 Checklist de Revisión
-
-**Para revisar en Code Issues Panel:**
-
-- [ ] Revisar todos los issues de seguridad crítica
-- [ ] Corregir SQL injection en scripts
-- [ ] Remover exposición de credenciales en logs
-- [ ] Agregar validación de errores en scripts
-- [ ] Implementar rate limiting activo
-- [ ] Agregar audit logging para acciones sensibles
-- [ ] Revisar permisos de archivos sensibles
-- [ ] Validar todos los inputs de usuario
-- [ ] Implementar CSRF protection si aplica
-- [ ] Revisar configuración de CORS en producción
-
-### 🛠️ Acciones Inmediatas Recomendadas
-
-1. **Scripts de Setup:**
-   - Sanitizar todas las variables usadas en SQL
-   - No mostrar passwords/tokens en output
-   - Agregar validación de errores
-
-2. **Código Go:**
-   - Revisar todos los handlers para validación de input
-   - Implementar rate limiting middleware
-   - Agregar más tests unitarios
-
-3. **Configuración:**
-   - Rotar claves RSA periódicamente
-   - Usar secrets manager en producción
-   - Habilitar SSL/TLS en PostgreSQL
-
-4. **Monitoring:**
-   - Implementar alertas para intentos de login fallidos
-   - Monitorear uso de endpoints sensibles
-   - Logging de cambios en roles/permisos
-
-### ✅ Resumen de Correcciones Aplicadas
-
-| Archivo | Issues Corregidos | Estado |
-|---------|-------------------|--------|
-| cmd/main.go | 4 | ✅ Completo |
-| internal/config/config.go | 6 | ✅ Completo |
-| internal/domain/role.go | 4 | ✅ Completo |
-| internal/domain/session.go | 1 | ✅ Completo |
-| internal/service/auth_service.go | 2 | ✅ Completo |
-| **TOTAL** | **17** | **✅ Completo** |
-
-### 📊 Resumen de Issues
-
-| Severidad | Original | Corregidos | Pendientes |
-|-----------|----------|------------|------------|
-| Crítica   | 3-5     | 5          | 0 |
-| Alta      | 5-8     | 8          | 0 |
-| Media     | 10-15   | 4          | ~10 |
-| Baja      | 10+     | 0          | ~10 |
-
-**Nota:** Para ver la lista completa y detallada de todos los issues, revisa el **Code Issues Panel** en tu IDE.
-
-### 🔗 Referencias
+### Referencias de Seguridad
 
 - [OWASP Top 10](https://owasp.org/www-project-top-ten/)
 - [Go Security Best Practices](https://github.com/OWASP/Go-SCP)
@@ -1258,129 +1032,40 @@ db.SetConnMaxLifetime(5 * time.Minute)
 
 ---
 
-## 🔧 Correcciones Críticas Aplicadas
+## Corrección Crítica: Token Blacklist
 
-### v1.1.0 - Corrección de Token Blacklist (2024-11-30)
+### v1.1.0 - Sistema de Invalidación por Timestamp (2024-11-30)
 
-#### 🐞 Problema Identificado
+**Problema Identificado:**
+Después de resetear contraseña, el usuario no podía hacer login nuevamente. Todos los tokens nuevos eran rechazados con 401.
 
-**Síntoma:** Después de resetear la contraseña, el usuario no podía hacer login nuevamente.
-Todos los tokens nuevos eran rechazados con error 401.
+**Causa Raíz:**
+El sistema guardaba un timestamp FUTURO (NOW + 24h) en la blacklist de Redis, invalidando TODOS los tokens incluyendo los emitidos después del reset.
 
-**Causa Raíz:** El sistema guardaba un timestamp FUTURO (NOW + 24h) en la blacklist,
-lo que invalidaba TODOS los tokens, incluyendo los emitidos después del reset.
+**Solución Aplicada:**
+- Cambio en `pkg/blacklist/blacklist.go`: Firma modificada de `until time.Time` a `ttl time.Duration`
+- Guardar timestamp ACTUAL como punto de invalidación en lugar de timestamp futuro
+- Tokens emitidos ANTES del timestamp → RECHAZADOS
+- Tokens emitidos DESPUÉS del timestamp → ACEPTADOS
 
-**Código Problemático:**
-```go
-// ANTES (INCORRECTO)
-func (b *TokenBlacklist) BlacklistUser(ctx context.Context, userID string, until time.Time) error {
-    // Guardaba: NOW + 24h
-    return b.redis.Set(ctx, key, until.Unix(), ttl).Err()
-}
+**Archivos Modificados:**
+1. `pkg/blacklist/blacklist.go` - Lógica de blacklist corregida
+2. `internal/service/auth_service.go` - Pasar TTL en lugar de timestamp
+3. `internal/service/user_service.go` - Usar InvalidateAllUserSessions
+4. `cmd/main.go` - Dependencia UserService → AuthService
+5. `test-reset-flow.sh` - Script de testing automatizado
 
-// Validación
-if tokenIssuedAt.Before(invalidationTime) {
-    return true // Token inválido
-}
-// Problema: Si invalidationTime = NOW + 24h, TODOS los tokens son inválidos
-```
-
-#### ✅ Solución Aplicada
-
-**Cambio en `pkg/blacklist/blacklist.go`:**
-```go
-// DESPUÉS (CORRECTO)
-func (b *TokenBlacklist) BlacklistUser(ctx context.Context, userID string, ttl time.Duration) error {
-    // Guarda timestamp ACTUAL como punto de invalidación
-    invalidationTimestamp := time.Now().Unix()
-    return b.redis.Set(ctx, key, invalidationTimestamp, ttl).Err()
-}
-
-// Validación
-if tokenIssuedAt.Before(invalidationTime) {
-    return true // Token inválido solo si fue emitido ANTES del reset
-}
-```
-
-**Cambio en `internal/service/auth_service.go`:**
-```go
-// ANTES
-invalidationTime := time.Now().Add(24 * time.Hour)
-return s.tokenBlacklist.BlacklistUser(ctx, userID.String(), invalidationTime)
-
-// DESPUÉS
-return s.tokenBlacklist.BlacklistUser(ctx, userID.String(), 24*time.Hour)
-```
-
-#### 📊 Impacto de la Corrección
-
-**Antes:**
-```
-10:00 - Login → Token A
-10:30 - Reset password → Blacklist hasta: 10:30 + 24h = 34:30
-10:31 - Token A → RECHAZADO ❌ (10:00 < 34:30)
-10:32 - Nuevo login → Token B
-10:33 - Token B → RECHAZADO ❌ (10:32 < 34:30) ← BUG!
-```
-
-**Después:**
-```
-10:00 - Login → Token A
-10:30 - Reset password → Blacklist timestamp: 10:30
-10:31 - Token A → RECHAZADO ❌ (10:00 < 10:30)
-10:32 - Nuevo login → Token B
-10:33 - Token B → ACEPTADO ✅ (10:32 >= 10:30) ← CORRECTO!
-```
-
-#### ✅ Verificación
-
-La corrección fue verificada con el script `test-reset-flow.sh`:
-
-```bash
-./test-reset-flow.sh
-
-✅ ¡TODOS LOS TESTS PASARON!
-
-📊 Resumen:
-  • Token original invalidado: ✅
-  • Nuevo token funciona: ✅
-  • Contraseña vieja rechazada: ✅
-  • Seguridad del reset: ✅
-```
-
-#### 🛡️ Seguridad Mejorada
-
-La corrección mantiene todas las garantías de seguridad:
-
+**Beneficios de la Corrección:**
 - ✅ Tokens antiguos se invalidan correctamente
-- ✅ Sesiones antiguas se cierran
-- ✅ Usuario puede hacer login inmediatamente después del reset
-- ✅ No hay ventana de vulnerabilidad
-- ✅ TTL de 24h asegura limpieza automática
+- ✅ Nuevos tokens funcionan inmediatamente
+- ✅ Usuario puede hacer login después del reset
+- ✅ Mantiene todas las garantías de seguridad
+- ✅ Auto-limpieza con TTL de Redis (24h)
 
-#### 📝 Archivos Modificados
-
-1. `pkg/blacklist/blacklist.go`
-   - Cambio de firma: `until time.Time` → `ttl time.Duration`
-   - Guardar timestamp actual en lugar de futuro
-   - Documentación actualizada
-
-2. `internal/service/auth_service.go`
-   - Pasar TTL en lugar de timestamp futuro
-   - Comentarios actualizados
-
-3. `internal/service/user_service.go`
-   - Usar `InvalidateAllUserSessions` del AuthService
-   - Asegurar blacklist en reset de contraseña
-
-4. `cmd/main.go`
-   - Establecer dependencia circular UserService → AuthService
-
-5. `test-reset-flow.sh` (nuevo)
-   - Script de prueba automatizado
-   - Valida flujo completo de reset
+**Verificación:**
+Script `test-reset-flow.sh` valida el flujo completo: Registro → Login → Reset → Invalidación → Nuevo Login
 
 ---
 
-**Última actualización:** 2024-11-30
-**Versión:** 1.1.0
+**Última actualización:** v1.5.0 (2024-12-07)
+**Sistema:** Multi-tenant completo con gestión de aplicaciones independientes
