@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"log"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -11,9 +12,13 @@ import (
 // AuthMiddleware validates JWT tokens and extracts user claims
 func AuthMiddleware(tokenService *jwt.TokenService, tokenBlacklist *blacklist.TokenBlacklist) fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		path := c.Path()
+		log.Printf("[AUTH_MIDDLEWARE] Request to: %s", path)
+
 		// Extract Authorization header
 		authHeader := c.Get("Authorization")
 		if authHeader == "" {
+			log.Printf("[AUTH_MIDDLEWARE] Missing authorization header")
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": "missing authorization header",
 			})
@@ -22,6 +27,7 @@ func AuthMiddleware(tokenService *jwt.TokenService, tokenBlacklist *blacklist.To
 		// Check if it's a Bearer token
 		parts := strings.SplitN(authHeader, " ", 2)
 		if len(parts) != 2 || parts[0] != "Bearer" {
+			log.Printf("[AUTH_MIDDLEWARE] Invalid auth header format")
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": "invalid authorization header format",
 			})
@@ -29,28 +35,36 @@ func AuthMiddleware(tokenService *jwt.TokenService, tokenBlacklist *blacklist.To
 
 		token := parts[1]
 		if token == "" {
+			log.Printf("[AUTH_MIDDLEWARE] Empty token")
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": "missing token",
 			})
 		}
 
+		log.Printf("[AUTH_MIDDLEWARE] Token found, validating...")
+
 		// Validate token first to get claims
 		claims, err := tokenService.ValidateToken(token)
 		if err != nil {
+			log.Printf("[AUTH_MIDDLEWARE] Token validation failed: %v", err)
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": "invalid token",
 			})
 		}
 
+		log.Printf("[AUTH_MIDDLEWARE] Token valid - User: %s, Type: %s", claims.Email, claims.TokenType)
+
 		// Check if token is blacklisted
 		isBlacklisted, err := tokenBlacklist.IsBlacklisted(c.Context(), token)
 		if err != nil {
+			log.Printf("[AUTH_MIDDLEWARE] Blacklist check failed: %v", err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"error": "failed to verify token status",
 			})
 		}
 
 		if isBlacklisted {
+			log.Printf("[AUTH_MIDDLEWARE] Token is blacklisted")
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": "token has been revoked",
 			})
@@ -60,11 +74,13 @@ func AuthMiddleware(tokenService *jwt.TokenService, tokenBlacklist *blacklist.To
 		if claims.IssuedAt != nil {
 			userBlacklisted, err := tokenBlacklist.IsUserBlacklisted(c.Context(), claims.UserID.String(), claims.IssuedAt.Time)
 			if err != nil {
+				log.Printf("[AUTH_MIDDLEWARE] User blacklist check failed: %v", err)
 				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 					"error": "failed to verify token status",
 				})
 			}
 			if userBlacklisted {
+				log.Printf("[AUTH_MIDDLEWARE] User is blacklisted (password changed)")
 				return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 					"error": "token invalidated due to password change",
 				})
@@ -73,10 +89,13 @@ func AuthMiddleware(tokenService *jwt.TokenService, tokenBlacklist *blacklist.To
 
 		// Check token type is "access"
 		if claims.TokenType != "access" {
+			log.Printf("[AUTH_MIDDLEWARE] Invalid token type: %s", claims.TokenType)
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error": "invalid token type",
 			})
 		}
+
+		log.Printf("[AUTH_MIDDLEWARE] All checks passed for user: %s", claims.Email)
 
 		// Store claims in fiber.Locals for downstream handlers
 		c.Locals("user_id", claims.UserID)
