@@ -247,12 +247,17 @@ func (s *UserService) ResendVerificationEmail(ctx context.Context, email string)
 
 // RequestPasswordReset generates a password reset token and sends it via email
 func (s *UserService) RequestPasswordReset(ctx context.Context, email string) error {
+	log.Printf("[USER_SERVICE] Password reset requested for email: %s", email)
+
 	// Get user by email
 	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil || user == nil {
 		// Don't reveal if user exists or not (security)
+		log.Printf("[USER_SERVICE] User not found for email: %s (returning success for security)", email)
 		return nil
 	}
+
+	log.Printf("[USER_SERVICE] User found: %s (ID: %s)", user.Email, user.ID)
 
 	// Generate password reset token (32 bytes = 64 hex chars)
 	token, err := generateSecureToken(32)
