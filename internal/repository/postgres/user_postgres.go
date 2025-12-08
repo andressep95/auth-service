@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -77,6 +78,8 @@ func (r *userRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Use
 
 // GetByEmail retrieves a user by their email address
 func (r *userRepository) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
+	log.Printf("[REPO] GetByEmail called for: %s", email)
+
 	query := `
 		SELECT id, app_id, email, password_hash, first_name, last_name,
 			   status, email_verified, mfa_enabled, mfa_secret,
@@ -88,15 +91,20 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*domain.
 		FROM users
 		WHERE email = $1`
 
+	log.Printf("[REPO] Executing query: %s with email=%s", query, email)
+
 	var user domain.User
 	err := r.db.GetContext(ctx, &user, query, email)
 	if err != nil {
 		if err == sql.ErrNoRows {
+			log.Printf("[REPO] No rows found for email: %s", email)
 			return nil, fmt.Errorf("user not found: %w", err)
 		}
+		log.Printf("[REPO] Database error for email %s: %v", email, err)
 		return nil, fmt.Errorf("failed to get user by email: %w", err)
 	}
 
+	log.Printf("[REPO] User found: ID=%s, Email=%s, AppID=%s", user.ID, user.Email, user.AppID)
 	return &user, nil
 }
 
