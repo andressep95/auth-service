@@ -135,6 +135,7 @@ func (h *UserHandler) ResendVerificationEmail(c *fiber.Ctx) error {
 func (h *UserHandler) ForgotPassword(c *fiber.Ctx) error {
 	var req struct {
 		Email string `json:"email" validate:"required,email"`
+		AppID string `json:"app_id" validate:"omitempty,uuid"` // Optional, defaults to frontend app
 	}
 
 	if err := c.BodyParser(&req); err != nil {
@@ -149,7 +150,13 @@ func (h *UserHandler) ForgotPassword(c *fiber.Ctx) error {
 		})
 	}
 
-	if err := h.userService.RequestPasswordReset(c.Context(), req.Email); err != nil {
+	// Use default app_id if not provided
+	appID := req.AppID
+	if appID == "" {
+		appID = "7057e69d-818b-45db-b39b-9d1c84aca142"
+	}
+
+	if err := h.userService.RequestPasswordReset(c.Context(), req.Email, appID); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": err.Error(),
 		})

@@ -19,6 +19,7 @@ import (
 
 type UserService struct {
 	userRepo     repository.UserRepository
+	tenantRepo   repository.TenantRepository
 	appRepo      repository.AppRepository
 	sessionRepo  repository.SessionRepository
 	authService  *AuthService
@@ -27,16 +28,18 @@ type UserService struct {
 }
 
 type RegisterRequest struct {
-	AppID     string `json:"app_id" validate:"omitempty,uuid"` // Optional, defaults to base app
+	AppID     string `json:"app_id" validate:"omitempty,uuid"`     // Optional, defaults to base app
+	TenantID  string `json:"tenant_id" validate:"omitempty,uuid"`  // Optional, defaults to public tenant
 	Email     string `json:"email" validate:"required,email"`
 	Password  string `json:"password" validate:"required,min=8"`
 	FirstName string `json:"first_name" validate:"required"`
 	LastName  string `json:"last_name" validate:"required"`
 }
 
-func NewUserService(userRepo repository.UserRepository, appRepo repository.AppRepository, sessionRepo repository.SessionRepository, emailService email.EmailService, cfg *config.Config) *UserService {
+func NewUserService(userRepo repository.UserRepository, tenantRepo repository.TenantRepository, appRepo repository.AppRepository, sessionRepo repository.SessionRepository, emailService email.EmailService, cfg *config.Config) *UserService {
 	return &UserService{
 		userRepo:     userRepo,
+		tenantRepo:   tenantRepo,
 		appRepo:      appRepo,
 		sessionRepo:  sessionRepo,
 		emailService: emailService,
@@ -71,10 +74,37 @@ func (s *UserService) Register(ctx context.Context, req RegisterRequest) (*domai
 		return nil, errors.New("application not found")
 	}
 
-	// Check if user already exists in this app
-	existingUser, err := s.userRepo.GetByEmailAndApp(ctx, req.Email, appID)
+	// Parse and validate tenant_id (use public tenant if not provided)
+	var tenantID uuid.UUID
+	if req.TenantID == "" {
+		// Get public tenant for this app
+		publicTenant, err := s.tenantRepo.GetPublicTenant(ctx, appID)
+		if err != nil || publicTenant == nil {
+			return nil, errors.New("public tenant not found for this application")
+		}
+		tenantID = publicTenant.ID
+		log.Printf("[USER_SERVICE] No tenant_id provided, using public tenant: %s", tenantID)
+	} else {
+		tenantID, err = uuid.Parse(req.TenantID)
+		if err != nil {
+			return nil, errors.New("invalid tenant_id format")
+		}
+
+		// Verify that the tenant exists and belongs to the app
+		tenant, err := s.tenantRepo.GetByID(ctx, tenantID)
+		if err != nil || tenant == nil {
+			return nil, errors.New("tenant not found")
+		}
+		if tenant.AppID != appID {
+			return nil, errors.New("tenant does not belong to this application")
+		}
+		log.Printf("[USER_SERVICE] Using tenant: %s (%s)", tenant.ID, tenant.Name)
+	}
+
+	// Check if user already exists in this app + tenant
+	existingUser, err := s.userRepo.GetByEmailAppAndTenant(ctx, req.Email, appID, tenantID)
 	if err == nil && existingUser != nil {
-		return nil, errors.New("user with this email already exists in this application")
+		return nil, errors.New("user with this email already exists in this tenant")
 	}
 
 	// Hash password
@@ -96,6 +126,7 @@ func (s *UserService) Register(ctx context.Context, req RegisterRequest) (*domai
 	user := &domain.User{
 		ID:                              uuid.New(),
 		AppID:                           appID,
+		TenantID:                        tenantID,
 		Email:                           req.Email,
 		PasswordHash:                    passwordHash,
 		FirstName:                       req.FirstName,
@@ -255,18 +286,25 @@ func (s *UserService) ResendVerificationEmail(ctx context.Context, email string)
 }
 
 // RequestPasswordReset generates a password reset token and sends it via email
-func (s *UserService) RequestPasswordReset(ctx context.Context, email string) error {
-	log.Printf("[USER_SERVICE] Password reset requested for email: %s", email)
+func (s *UserService) RequestPasswordReset(ctx context.Context, email, appIDStr string) error {
+	log.Printf("[USER_SERVICE] Password reset requested for email: %s, app_id: %s", email, appIDStr)
 
-	// Get user by email
-	user, err := s.userRepo.GetByEmail(ctx, email)
+	// Parse app_id
+	appID, err := uuid.Parse(appIDStr)
+	if err != nil {
+		log.Printf("[USER_SERVICE] Invalid app_id format: %s", appIDStr)
+		return nil // Don't reveal error for security
+	}
+
+	// Get user by email and app (multi-tenant)
+	user, err := s.userRepo.GetByEmailAndApp(ctx, email, appID)
 	if err != nil || user == nil {
 		// Don't reveal if user exists or not (security)
-		log.Printf("[USER_SERVICE] User not found for email: %s (returning success for security)", email)
+		log.Printf("[USER_SERVICE] User not found for email: %s, app_id: %s (returning success for security)", email, appID)
 		return nil
 	}
 
-	log.Printf("[USER_SERVICE] User found: %s (ID: %s)", user.Email, user.ID)
+	log.Printf("[USER_SERVICE] User found: %s (ID: %s, AppID: %s)", user.Email, user.ID, user.AppID)
 
 	// Generate password reset token (32 bytes = 64 hex chars)
 	token, err := generateSecureToken(32)

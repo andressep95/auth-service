@@ -17,6 +17,7 @@ const (
 type User struct {
 	ID                              uuid.UUID  `json:"id" db:"id"`
 	AppID                           uuid.UUID  `json:"app_id" db:"app_id"`
+	TenantID                        uuid.UUID  `json:"tenant_id" db:"tenant_id"`
 	Email                           string     `json:"email" db:"email"`
 	PasswordHash                    string     `json:"-" db:"password_hash"`
 	FirstName                       string     `json:"first_name" db:"first_name"`

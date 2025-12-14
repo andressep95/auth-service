@@ -95,12 +95,14 @@ func AuthMiddleware(tokenService *jwt.TokenService, tokenBlacklist *blacklist.To
 			})
 		}
 
-		log.Printf("[AUTH_MIDDLEWARE] All checks passed for user: %s", claims.Email)
+		log.Printf("[AUTH_MIDDLEWARE] All checks passed for user: %s (app_id: %s, tenant_id: %s)", claims.Email, claims.AppID, claims.TenantID)
 
 		// Store claims in fiber.Locals for downstream handlers
 		c.Locals("user_id", claims.UserID)
 		c.Locals("email", claims.Email)
 		c.Locals("roles", claims.Roles)
+		c.Locals("app_id", claims.AppID)       // Store app_id from token
+		c.Locals("tenant_id", claims.TenantID) // Store tenant_id from token
 		c.Locals("claims", claims)
 		c.Locals("token", token) // Store token for potential invalidation
 

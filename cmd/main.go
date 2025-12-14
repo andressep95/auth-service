@@ -68,6 +68,7 @@ func main() {
 
 	// Initialize repositories
 	userRepo := postgres.NewUserRepository(db)
+	tenantRepo := postgres.NewTenantRepository(db)
 	appRepo := postgres.NewAppRepository(db)
 	sessionRepo := postgres.NewSessionRepository(db)
 	roleRepo := postgres.NewRoleRepository(db)
@@ -108,8 +109,8 @@ func main() {
 	}
 
 	// Initialize services
-	authService := service.NewAuthService(userRepo, sessionRepo, tokenService, tokenBlacklist, cfg)
-	userService := service.NewUserService(userRepo, appRepo, sessionRepo, emailService, cfg)
+	authService := service.NewAuthService(userRepo, tenantRepo, sessionRepo, tokenService, tokenBlacklist, cfg)
+	userService := service.NewUserService(userRepo, tenantRepo, appRepo, sessionRepo, emailService, cfg)
 	roleService := service.NewRoleService(roleRepo, userRepo)
 
 	// Set circular dependency: UserService needs AuthService for token blacklisting

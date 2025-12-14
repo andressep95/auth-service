@@ -112,17 +112,11 @@ wait_for_postgres() {
     exit 1
 }
 
-# Función para ejecutar migraciones
-run_migrations() {
-    echo -e "${BLUE}📊 Ejecutando migración inicial...${NC}"
+# NOTA: Las migraciones se ejecutan automáticamente en docker-entrypoint.sh
+# No es necesario ejecutarlas manualmente aquí para evitar duplicación
+# El contenedor de auth-service ejecuta docker-entrypoint.sh al iniciar,
+# que verifica la tabla schema_migrations y aplica migraciones pendientes
 
-    if ! docker-compose exec -T postgres psql -U auth -d authdb < migrations/001_initial.sql; then
-        echo -e "${RED}❌ Error en migración inicial${NC}"
-        exit 1
-    fi
-
-    echo -e "${GREEN}✓ Migración ejecutada exitosamente${NC}"
-}
 
 # Función para verificar que el código compila
 verify_build() {
@@ -174,11 +168,14 @@ create_admin_user() {
     echo "   Email: $email"
     echo "   Nombre: $first_name $last_name"
     
-    # Registrar usuario
+    # Registrar usuario (con app_id y tenant_id del tenant "public")
+    local public_tenant_id="00000000-0000-0000-0000-000000000001"
     local register_response
     register_response=$(curl -s -X POST "$API_URL/api/v1/auth/register" \
         -H "Content-Type: application/json" \
         -d "{
+            \"app_id\": \"$APP_ID\",
+            \"tenant_id\": \"$public_tenant_id\",
             \"email\": \"$email\",
             \"password\": \"$password\",
             \"first_name\": \"$first_name\",
@@ -191,7 +188,7 @@ create_admin_user() {
         echo -e "${GREEN}✓ Usuario registrado${NC}"
     elif echo "$register_response" | grep -q "already exists"; then
         user_id=$(docker-compose exec -T postgres psql -U auth -d authdb -t -c \
-            "SELECT id FROM users WHERE email = '$email';" | tr -d ' \n')
+            "SELECT id FROM users WHERE app_id = '$APP_ID' AND tenant_id = '$public_tenant_id' AND email = '$email';" | tr -d ' \n')
         echo -e "${YELLOW}⚠️  Usuario ya existe${NC}"
     else
         echo -e "${RED}❌ Error registrando usuario: $register_response${NC}"
@@ -241,7 +238,7 @@ EOF
         echo "$login_response"
         echo ""
         echo -e "${YELLOW}💡 Verificando si el usuario existe en la base de datos...${NC}"
-        docker-compose exec -T postgres psql -U auth -d authdb -c "SELECT email, status FROM users WHERE email = '$email';"
+        docker-compose exec -T postgres psql -U auth -d authdb -c "SELECT email, status, tenant_id FROM users WHERE app_id = '$APP_ID' AND email = '$email';"
         return 1
     fi
 }
@@ -305,7 +302,7 @@ main() {
     generate_keys
     start_services
     wait_for_postgres
-    run_migrations
+    # Las migraciones se ejecutan automáticamente en docker-entrypoint.sh
     verify_build
     wait_for_app
     

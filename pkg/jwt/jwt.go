@@ -59,6 +59,7 @@ func (s *TokenService) GenerateTokenPair(user *domain.User, roles []string, appI
 		Email:     user.Email,
 		Roles:     roles,
 		AppID:     appID,
+		TenantID:  user.TenantID,
 		SessionID: sessionID, // Include session ID for session tracking
 		TokenType: "access",
 	}
@@ -79,6 +80,8 @@ func (s *TokenService) GenerateTokenPair(user *domain.User, roles []string, appI
 			ID:        uuid.New().String(),
 		},
 		UserID:    user.ID,
+		AppID:     appID,
+		TenantID:  user.TenantID,
 		TokenType: "refresh",
 	}
 

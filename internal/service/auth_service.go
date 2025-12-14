@@ -26,6 +26,7 @@ var (
 
 type AuthService struct {
 	userRepo       repository.UserRepository
+	tenantRepo     repository.TenantRepository
 	sessionRepo    repository.SessionRepository
 	tokenService   *jwt.TokenService
 	tokenBlacklist *blacklist.TokenBlacklist
@@ -35,7 +36,8 @@ type AuthService struct {
 type LoginRequest struct {
 	Email    string `json:"email" validate:"required,email"`
 	Password string `json:"password" validate:"required,min=8"`
-	AppID    string `json:"app_id" validate:"omitempty,uuid"` // Optional, defaults to base app
+	AppID    string `json:"app_id" validate:"omitempty,uuid"`     // Optional, defaults to base app
+	TenantID string `json:"tenant_id" validate:"omitempty,uuid"` // Optional, defaults to public tenant
 }
 
 type LoginResponse struct {
@@ -48,10 +50,12 @@ type UserDTO struct {
 	Email     string    `json:"email"`
 	FirstName string    `json:"first_name"`
 	LastName  string    `json:"last_name"`
+	TenantID  uuid.UUID `json:"tenant_id"`
 }
 
 func NewAuthService(
 	userRepo repository.UserRepository,
+	tenantRepo repository.TenantRepository,
 	sessionRepo repository.SessionRepository,
 	tokenService *jwt.TokenService,
 	tokenBlacklist *blacklist.TokenBlacklist,
@@ -59,6 +63,7 @@ func NewAuthService(
 ) *AuthService {
 	return &AuthService{
 		userRepo:       userRepo,
+		tenantRepo:     tenantRepo,
 		sessionRepo:    sessionRepo,
 		tokenService:   tokenService,
 		tokenBlacklist: tokenBlacklist,
@@ -82,8 +87,35 @@ func (s *AuthService) Login(ctx context.Context, req LoginRequest) (*LoginRespon
 		}
 	}
 
-	// Get user by email and app (multi-tenant)
-	user, err := s.userRepo.GetByEmailAndApp(ctx, req.Email, appID)
+	// Parse and validate tenant_id (use public tenant if not provided)
+	var tenantID uuid.UUID
+	if req.TenantID == "" {
+		// Get public tenant for this app
+		publicTenant, err := s.tenantRepo.GetPublicTenant(ctx, appID)
+		if err != nil || publicTenant == nil {
+			return nil, errors.New("public tenant not found for this application")
+		}
+		tenantID = publicTenant.ID
+		log.Printf("[AUTH_SERVICE] No tenant_id provided, using public tenant: %s", tenantID)
+	} else {
+		tenantID, err = uuid.Parse(req.TenantID)
+		if err != nil {
+			return nil, errors.New("invalid tenant_id format")
+		}
+
+		// Verify that the tenant exists and belongs to the app
+		tenant, err := s.tenantRepo.GetByID(ctx, tenantID)
+		if err != nil || tenant == nil {
+			return nil, errors.New("tenant not found")
+		}
+		if tenant.AppID != appID {
+			return nil, errors.New("tenant does not belong to this application")
+		}
+		log.Printf("[AUTH_SERVICE] Using tenant: %s (%s)", tenant.ID, tenant.Name)
+	}
+
+	// Get user by email, app, and tenant (multi-tenant)
+	user, err := s.userRepo.GetByEmailAppAndTenant(ctx, req.Email, appID, tenantID)
 	if err != nil {
 		return nil, ErrInvalidCredentials
 	}
@@ -157,6 +189,7 @@ func (s *AuthService) Login(ctx context.Context, req LoginRequest) (*LoginRespon
 		ID:               sessionID,
 		UserID:           user.ID,
 		AppID:            appID,
+		TenantID:         tenantID,
 		RefreshTokenHash: hashedRefreshToken,
 		ExpiresAt:        time.Now().Add(s.cfg.JWT.RefreshTokenExpiry),
 		CreatedAt:        time.Now(),
@@ -178,6 +211,7 @@ func (s *AuthService) Login(ctx context.Context, req LoginRequest) (*LoginRespon
 		Email:     user.Email,
 		FirstName: user.FirstName,
 		LastName:  user.LastName,
+		TenantID:  tenantID,
 	}
 
 	return &LoginResponse{

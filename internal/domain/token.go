@@ -21,6 +21,7 @@ type Claims struct {
 	Roles       []string   `json:"roles,omitempty"`
 	Permissions []string   `json:"permissions,omitempty"`
 	AppID       uuid.UUID  `json:"app_id,omitempty"`
+	TenantID    uuid.UUID  `json:"tenant_id,omitempty"`
 	SessionID   *uuid.UUID `json:"sid,omitempty"` // Session ID for tracking current session
 	TokenType   string     `json:"type"`
 }

@@ -26,7 +26,7 @@ func NewUserRepository(db *sqlx.DB) repository.UserRepository {
 func (r *userRepository) Create(ctx context.Context, user *domain.User) error {
 	query := `
 		INSERT INTO users (
-			id, app_id, email, password_hash, first_name, last_name,
+			id, app_id, tenant_id, email, password_hash, first_name, last_name,
 			status, email_verified, mfa_enabled, mfa_secret,
 			failed_logins, locked_until,
 			email_verification_token, email_verification_token_expires_at,
@@ -34,7 +34,7 @@ func (r *userRepository) Create(ctx context.Context, user *domain.User) error {
 			provider, provider_id, is_super_admin,
 			created_at, updated_at, last_login_at
 		) VALUES (
-			:id, :app_id, :email, :password_hash, :first_name, :last_name,
+			:id, :app_id, :tenant_id, :email, :password_hash, :first_name, :last_name,
 			:status, :email_verified, :mfa_enabled, :mfa_secret,
 			:failed_logins, :locked_until,
 			:email_verification_token, :email_verification_token_expires_at,
@@ -54,7 +54,7 @@ func (r *userRepository) Create(ctx context.Context, user *domain.User) error {
 // GetByID retrieves a user by their ID
 func (r *userRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, error) {
 	query := `
-		SELECT id, app_id, email, password_hash, first_name, last_name,
+		SELECT id, app_id, tenant_id, email, password_hash, first_name, last_name,
 			   status, email_verified, mfa_enabled, mfa_secret,
 			   failed_logins, locked_until,
 			   email_verification_token, email_verification_token_expires_at,
@@ -81,7 +81,7 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*domain.
 	log.Printf("[REPO] GetByEmail called for: %s", email)
 
 	query := `
-		SELECT id, app_id, email, password_hash, first_name, last_name,
+		SELECT id, app_id, tenant_id, email, password_hash, first_name, last_name,
 			   status, email_verified, mfa_enabled, mfa_secret,
 			   failed_logins, locked_until,
 			   email_verification_token, email_verification_token_expires_at,
@@ -109,9 +109,11 @@ func (r *userRepository) GetByEmail(ctx context.Context, email string) (*domain.
 }
 
 // GetByEmailAndApp retrieves a user by their email address and app ID (multi-tenant)
+// Note: This method now returns the first user found with this email in the app
+// For tenant-specific lookups, use GetByEmailAppAndTenant instead
 func (r *userRepository) GetByEmailAndApp(ctx context.Context, email string, appID uuid.UUID) (*domain.User, error) {
 	query := `
-		SELECT id, app_id, email, password_hash, first_name, last_name,
+		SELECT id, app_id, tenant_id, email, password_hash, first_name, last_name,
 			   status, email_verified, mfa_enabled, mfa_secret,
 			   failed_logins, locked_until,
 			   email_verification_token, email_verification_token_expires_at,
@@ -119,7 +121,8 @@ func (r *userRepository) GetByEmailAndApp(ctx context.Context, email string, app
 			   provider, provider_id, is_super_admin,
 			   created_at, updated_at, last_login_at
 		FROM users
-		WHERE email = $1 AND app_id = $2`
+		WHERE email = $1 AND app_id = $2
+		LIMIT 1`
 
 	var user domain.User
 	err := r.db.GetContext(ctx, &user, query, email, appID)
@@ -130,6 +133,36 @@ func (r *userRepository) GetByEmailAndApp(ctx context.Context, email string, app
 		return nil, fmt.Errorf("failed to get user by email and app: %w", err)
 	}
 
+	return &user, nil
+}
+
+// GetByEmailAppAndTenant retrieves a user by their email, app ID and tenant ID (full multi-tenant)
+func (r *userRepository) GetByEmailAppAndTenant(ctx context.Context, email string, appID, tenantID uuid.UUID) (*domain.User, error) {
+	log.Printf("[REPO] GetByEmailAppAndTenant called for: email=%s, app_id=%s, tenant_id=%s", email, appID, tenantID)
+
+	query := `
+		SELECT id, app_id, tenant_id, email, password_hash, first_name, last_name,
+			   status, email_verified, mfa_enabled, mfa_secret,
+			   failed_logins, locked_until,
+			   email_verification_token, email_verification_token_expires_at,
+			   password_reset_token, password_reset_token_expires_at,
+			   provider, provider_id, is_super_admin,
+			   created_at, updated_at, last_login_at
+		FROM users
+		WHERE email = $1 AND app_id = $2 AND tenant_id = $3`
+
+	var user domain.User
+	err := r.db.GetContext(ctx, &user, query, email, appID, tenantID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			log.Printf("[REPO] No user found for email=%s, app_id=%s, tenant_id=%s", email, appID, tenantID)
+			return nil, fmt.Errorf("user not found: %w", err)
+		}
+		log.Printf("[REPO] Database error: %v", err)
+		return nil, fmt.Errorf("failed to get user by email, app and tenant: %w", err)
+	}
+
+	log.Printf("[REPO] User found: ID=%s, Email=%s, TenantID=%s", user.ID, user.Email, user.TenantID)
 	return &user, nil
 }
 
@@ -313,11 +346,12 @@ func (r *userRepository) GetUserRolesAllApps(ctx context.Context, userID uuid.UU
 // GetByVerificationToken retrieves a user by their email verification token
 func (r *userRepository) GetByVerificationToken(ctx context.Context, token string) (*domain.User, error) {
 	query := `
-		SELECT id, email, password_hash, first_name, last_name,
+		SELECT id, app_id, tenant_id, email, password_hash, first_name, last_name,
 			   status, email_verified, mfa_enabled, mfa_secret,
 			   failed_logins, locked_until,
 			   email_verification_token, email_verification_token_expires_at,
 			   password_reset_token, password_reset_token_expires_at,
+			   provider, provider_id, is_super_admin,
 			   created_at, updated_at, last_login_at
 		FROM users
 		WHERE email_verification_token = $1`
@@ -337,11 +371,12 @@ func (r *userRepository) GetByVerificationToken(ctx context.Context, token strin
 // GetByPasswordResetToken retrieves a user by their password reset token
 func (r *userRepository) GetByPasswordResetToken(ctx context.Context, token string) (*domain.User, error) {
 	query := `
-		SELECT id, email, password_hash, first_name, last_name,
+		SELECT id, app_id, tenant_id, email, password_hash, first_name, last_name,
 			   status, email_verified, mfa_enabled, mfa_secret,
 			   failed_logins, locked_until,
 			   email_verification_token, email_verification_token_expires_at,
 			   password_reset_token, password_reset_token_expires_at,
+			   provider, provider_id, is_super_admin,
 			   created_at, updated_at, last_login_at
 		FROM users
 		WHERE password_reset_token = $1`
