@@ -32,7 +32,7 @@
 - **Tokens**: JWT con RS256 (RSA) incluyendo app_id en claims
 - **Password Hashing**: Argon2id
 - **Containerización**: Docker + Docker Compose
-- **Email Service**: CloudCentinel Email Service (AWS SES)
+- **Email Service**: CloudCentinel Email Service (AWS SES) con templates personalizados en auth-service
 
 ### Estado del Proyecto
 
@@ -146,6 +146,46 @@ auth-service/
 │         PostgreSQL + Redis          │
 └─────────────────────────────────────┘
 ```
+
+### Arquitectura de Email con Templates Personalizados
+
+El sistema de email utiliza una arquitectura de dos capas donde el auth-service genera las plantillas HTML y el email-service solo se encarga del envío físico:
+
+**Componentes:**
+
+1. **Templates HTML (pkg/email/templates.go)**
+   - `VerificationEmailTemplate(name, verificationURL)` - Email de verificación con link
+   - `PasswordResetEmailTemplate(name, resetURL)` - Email de reset de contraseña con link
+   - `WelcomeEmailTemplate(name)` - Email de bienvenida
+   - `PasswordChangedEmailTemplate(name)` - Confirmación de cambio de contraseña
+
+2. **Cliente Email (pkg/email/cloudcentinel.go)**
+   - Genera URLs completas: `{BASE_URL}/{token}`
+   - Renderiza templates con datos dinámicos
+   - Envía HTML personalizado vía endpoint `/send-custom`
+   - Maneja reintentos y logging detallado
+
+3. **Email Service Externo (CloudCentinel)**
+   - Endpoint: `POST /send-custom`
+   - Request: `{ "to": "...", "subject": "...", "html": "..." }`
+   - Solo envía el HTML recibido sin modificación
+   - Usa AWS SES para delivery
+
+**Flujo de Envío de Email:**
+```
+1. Auth Service genera token → "abc123..."
+2. Construye URL completa → "https://app.com/verify-email/abc123..."
+3. Renderiza template HTML con URL → HTML completo
+4. POST /send-custom { to, subject, html }
+5. Email Service → AWS SES → Usuario
+```
+
+**Beneficios de esta arquitectura:**
+- ✅ Control total de URLs (apuntan al frontend específico)
+- ✅ Personalización completa de templates
+- ✅ Email service simple (solo proxy a AWS SES)
+- ✅ Fácil A/B testing de diseños
+- ✅ Multi-tenant friendly (diferentes URLs por app)
 
 ### Flujo de Autenticación
 
@@ -281,7 +321,7 @@ make admin-login
 - ✅ Connection pooling optimizado (25 max open, 5 idle, 5min lifetime)
 - ✅ Migraciones SQL versionadas (001_initial.sql consolidado)
 - ✅ Scripts de automatización (setup, keys, admin creation)
-- ✅ Email service con CloudCentinel (AWS SES) integrado
+- ✅ Email service con CloudCentinel (AWS SES) usando templates HTML personalizados (endpoint /send-custom)
 
 ### ⏳ Pendientes
 
@@ -639,11 +679,18 @@ Implementa blacklist de dos niveles para máxima seguridad:
 - `CORS_ALLOWED_ORIGINS`: Lista de orígenes permitidos separados por coma
 
 **Email (CloudCentinel):**
-- `EMAIL_SERVICE_URL`: URL del servicio de email (default: https://api.cloudcentinel.com/email/send)
+- `EMAIL_SERVICE_URL`: URL del servicio de email (default: https://api.cloudcentinel.com/email/send-custom)
 - `EMAIL_ENABLED`: Habilitar/deshabilitar servicio de email (default: true)
 - `EMAIL_TIMEOUT`: Timeout para requests de email (default: 10s)
+- `EMAIL_VERIFICATION_BASE_URL`: URL base del frontend para verificación de email (default: http://localhost:3000/verify-email)
+- `EMAIL_PASSWORD_RESET_BASE_URL`: URL base del frontend para reset de contraseña (default: http://localhost:3000/reset-password)
 
-**Nota:** Las URLs de verificación/reset y el remitente se configuran en el email-service, no aquí.
+**Importante:**
+- Las plantillas HTML se generan en el auth-service usando `pkg/email/templates.go`
+- El token se anexa automáticamente a las URLs como query param: `{BASE_URL}?token={token}`
+- El email-service solo envía el HTML generado (endpoint `/send-custom`)
+- Las URLs apuntan a las páginas HTML servidas por el auth-service en `/auth/verify-email` y `/auth/reset-password`
+- El auth-service tiene vistas HTML completas para login, registro, verificación y reset de contraseña
 
 ### Generar Claves RSA
 

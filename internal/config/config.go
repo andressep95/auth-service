@@ -62,9 +62,11 @@ type CORSConfig struct {
 }
 
 type EmailConfig struct {
-	ServiceURL string        // URL of the email service API endpoint
-	Enabled    bool          // Enable/disable email functionality
-	Timeout    time.Duration // HTTP request timeout
+	ServiceURL           string        // URL of the email service API endpoint (should point to /send-custom)
+	Enabled              bool          // Enable/disable email functionality
+	Timeout              time.Duration // HTTP request timeout
+	VerificationBaseURL  string        // Base URL for email verification links (e.g., https://yourapp.com/verify-email)
+	PasswordResetBaseURL string        // Base URL for password reset links (e.g., https://yourapp.com/reset-password)
 }
 
 func Load() (*Config, error) {
@@ -108,9 +110,11 @@ func Load() (*Config, error) {
 			AllowedOrigins: getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8080"),
 		},
 		Email: EmailConfig{
-			ServiceURL: getEnv("EMAIL_SERVICE_URL", "https://api.cloudcentinel.com/email/send"),
-			Enabled:    getBoolEnv("EMAIL_ENABLED", true),
-			Timeout:    getDurationEnv("EMAIL_TIMEOUT", 10*time.Second),
+			ServiceURL:           getEnv("EMAIL_SERVICE_URL", "https://api.cloudcentinel.com/email/send-custom"),
+			Enabled:              getBoolEnv("EMAIL_ENABLED", true),
+			Timeout:              getDurationEnv("EMAIL_TIMEOUT", 10*time.Second),
+			VerificationBaseURL:  getEnv("EMAIL_VERIFICATION_BASE_URL", "http://localhost:3000/verify-email"),
+			PasswordResetBaseURL: getEnv("EMAIL_PASSWORD_RESET_BASE_URL", "http://localhost:3000/reset-password"),
 		},
 	}
 

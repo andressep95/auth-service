@@ -148,6 +148,56 @@ func (h *AuthPageHandler) ShowRegisterInvitation(c *fiber.Ctx) error {
 	return c.Render("register-invitation", data, "layout")
 }
 
+// ShowVerifyEmail renders the email verification page
+// GET /auth/verify-email?token=xxx
+func (h *AuthPageHandler) ShowVerifyEmail(c *fiber.Ctx) error {
+	log.Printf("[AUTH_PAGE] ShowVerifyEmail called - Path: %s", c.Path())
+
+	token := c.Query("token")
+	if token == "" {
+		return c.Status(http.StatusBadRequest).SendString("Verification token is required")
+	}
+
+	appIDStr := c.Query("app_id", "7057e69d-818b-45db-b39b-9d1c84aca142") // Default app
+	appID, err := uuid.Parse(appIDStr)
+	if err != nil {
+		appID, _ = uuid.Parse("7057e69d-818b-45db-b39b-9d1c84aca142")
+	}
+
+	app, err := h.appService.GetAppByID(c.Context(), appID.String())
+	if err != nil {
+		// Use default values if app not found
+		log.Printf("[AUTH_PAGE] App not found, using defaults for verify-email")
+		defaultData := fiber.Map{
+			"Title":        "Verificar email",
+			"AppName":      "Auth Service",
+			"AppID":        appIDStr,
+			"PrimaryColor": "#3B82F6",
+			"Subtitle":     "Confirma tu dirección de correo",
+			"Token":        token,
+			"Content":      "verify-email-content",
+		}
+		return c.Render("verify-email", defaultData, "layout")
+	}
+
+	data := fiber.Map{
+		"Title":        "Verificar email",
+		"AppName":      app.Name,
+		"AppID":        app.ID.String(),
+		"PrimaryColor": app.PrimaryColor,
+		"Subtitle":     "Confirma tu dirección de correo",
+		"Token":        token,
+	}
+
+	if app.LogoURL != nil {
+		data["Logo"] = *app.LogoURL
+	}
+
+	log.Printf("[AUTH_PAGE] Rendering verify-email template with data: Title=%s, AppID=%s", data["Title"], data["AppID"])
+	data["Content"] = "verify-email-content"
+	return c.Render("verify-email", data, "layout")
+}
+
 // ShowResetPassword renders the reset password page
 // GET /auth/reset-password?token=xxx
 func (h *AuthPageHandler) ShowResetPassword(c *fiber.Ctx) error {

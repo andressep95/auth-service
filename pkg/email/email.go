@@ -32,8 +32,10 @@ type EmailRequest struct {
 
 // EmailConfig holds email service configuration
 type EmailConfig struct {
-	BaseURL string        // URL of the email service API endpoint
-	Timeout time.Duration // HTTP request timeout
+	ServiceURL           string        // URL of the email service API endpoint (should point to /send-custom)
+	Timeout              time.Duration // HTTP request timeout
+	VerificationBaseURL  string        // Base URL for email verification links
+	PasswordResetBaseURL string        // Base URL for password reset links
 }
 
 // EmailMetrics holds metrics for monitoring

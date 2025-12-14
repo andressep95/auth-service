@@ -95,8 +95,10 @@ func main() {
 	var emailService email.EmailService
 	if cfg.Email.Enabled {
 		emailConfig := &email.EmailConfig{
-			BaseURL: cfg.Email.ServiceURL,
-			Timeout: cfg.Email.Timeout,
+			ServiceURL:           cfg.Email.ServiceURL,
+			Timeout:              cfg.Email.Timeout,
+			VerificationBaseURL:  cfg.Email.VerificationBaseURL,
+			PasswordResetBaseURL: cfg.Email.PasswordResetBaseURL,
 		}
 
 		emailService, err = email.NewCloudCentinelEmailService(emailConfig)

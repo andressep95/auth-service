@@ -26,13 +26,10 @@ services:
       - AUTH_LOCK_DURATION=15m
       - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8080,http://127.0.0.1:3000,http://127.0.0.1:8080
       - EMAIL_ENABLED=true
-      - EMAIL_PROVIDER=resend
-      - EMAIL_API_KEY=re_Fbvyp6xq_8PKNsAvRcKCNjeJ6iUSbKTpY
-      - EMAIL_FROM_EMAIL=noreply@cloudcentinel.com
-      - EMAIL_FROM_NAME=Auth Service
-      - EMAIL_BASE_URL=http://localhost:3000
-      - EMAIL_VERIFICATION_URL=http://localhost:3000/verify-email
-      - EMAIL_RESET_URL=http://localhost:3000/reset-password
+      - EMAIL_SERVICE_URL=http://host.docker.internal:8083/send-custom
+      - EMAIL_TIMEOUT=10s
+      - EMAIL_VERIFICATION_BASE_URL=http://localhost:8080/auth/verify-email
+      - EMAIL_PASSWORD_RESET_BASE_URL=http://localhost:8080/auth/reset-password
     volumes:
       - ./keys:/keys:ro
       - ./migrations:/migrations:ro

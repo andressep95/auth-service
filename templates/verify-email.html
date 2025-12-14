@@ -1,0 +1,105 @@
+{{define "verify-email-content"}}
+<div id="loading" class="loading" style="display: block;">
+    <div class="spinner"></div>
+    <p style="margin-top: 12px; color: #718096;">Verificando tu email...</p>
+</div>
+
+<div id="success" class="alert alert-success" style="display: none;">
+    <h3 style="margin: 0 0 8px 0;">✅ Email verificado exitosamente</h3>
+    <p style="margin: 0;">Tu cuenta ha sido activada correctamente.</p>
+</div>
+
+<div id="error" class="alert alert-error" style="display: none;">
+    <h3 style="margin: 0 0 8px 0;">❌ Error en la verificación</h3>
+    <p id="error-message" style="margin: 0;">Token inválido o expirado.</p>
+</div>
+
+<div id="actions" style="display: none; margin-top: 24px;">
+    <button type="button" class="btn" onclick="goToLogin()">
+        Ir a iniciar sesión
+    </button>
+
+    <div class="divider">
+        <button type="button" onclick="resendVerification()" style="background: transparent; border: none; color: {{.PrimaryColor}}; cursor: pointer; text-decoration: underline;">
+            Reenviar email de verificación
+        </button>
+    </div>
+</div>
+
+<script>
+    const token = '{{.Token}}';
+    const appID = '{{.AppID}}';
+
+    // Auto-verify on page load
+    window.addEventListener('DOMContentLoaded', function() {
+        verifyEmail();
+    });
+
+    async function verifyEmail() {
+        try {
+            const response = await fetch('/api/v1/auth/verify-email', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ token: token })
+            });
+
+            const data = await response.json();
+
+            // Hide loading
+            document.getElementById('loading').style.display = 'none';
+
+            if (response.ok) {
+                // Show success
+                document.getElementById('success').style.display = 'block';
+                document.getElementById('actions').style.display = 'block';
+
+                // Redirect to login after 3 seconds
+                setTimeout(() => {
+                    goToLogin();
+                }, 3000);
+            } else {
+                // Show error
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error-message').textContent = data.error || 'Token inválido o expirado.';
+                document.getElementById('actions').style.display = 'block';
+            }
+        } catch (error) {
+            console.error('Error verifying email:', error);
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('error-message').textContent = 'Error de conexión. Por favor intenta nuevamente.';
+            document.getElementById('actions').style.display = 'block';
+        }
+    }
+
+    function goToLogin() {
+        window.location.href = `/auth/login?app_id=${appID}`;
+    }
+
+    async function resendVerification() {
+        const email = prompt('Ingresa tu email para reenviar la verificación:');
+        if (!email) return;
+
+        try {
+            const response = await fetch('/api/v1/auth/resend-verification', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ email: email })
+            });
+
+            if (response.ok) {
+                alert('✅ Email de verificación reenviado. Revisa tu bandeja de entrada.');
+            } else {
+                const data = await response.json();
+                alert('❌ Error: ' + (data.error || 'No se pudo reenviar el email.'));
+            }
+        } catch (error) {
+            alert('❌ Error de conexión. Por favor intenta nuevamente.');
+        }
+    }
+</script>
+{{end}}

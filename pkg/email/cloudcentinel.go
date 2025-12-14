@@ -13,30 +13,37 @@ import (
 
 // CloudCentinelEmailService implements EmailService using CloudCentinel Email Service
 type CloudCentinelEmailService struct {
-	client     *http.Client
-	serviceURL string
-	config     *EmailConfig
+	client               *http.Client
+	serviceURL           string
+	verificationBaseURL  string
+	passwordResetBaseURL string
+	config               *EmailConfig
 }
 
-// CloudCentinelEmailRequest represents the request body for CloudCentinel email service
-type CloudCentinelEmailRequest struct {
-	Type  string `json:"type"`            // verification, password_reset, welcome, password_changed
-	To    string `json:"to"`              // recipient email
-	Name  string `json:"name"`            // recipient name
-	Token string `json:"token,omitempty"` // token for verification/reset (optional)
+// CustomEmailRequest represents the request body for custom HTML email (using /send-custom endpoint)
+type CustomEmailRequest struct {
+	To      string `json:"to"`      // recipient email
+	Subject string `json:"subject"` // email subject
+	HTML    string `json:"html"`    // custom HTML content
 }
 
-// CloudCentinelEmailResponse represents the response from CloudCentinel email service
-type CloudCentinelEmailResponse struct {
-	Success bool   `json:"success"`
-	Message string `json:"message,omitempty"`
-	Error   string `json:"error,omitempty"`
+// EmailResponse represents the response from email service
+type EmailResponse struct {
+	Status string `json:"status"` // "sent"
 }
 
 // NewCloudCentinelEmailService creates a new CloudCentinel email service
 func NewCloudCentinelEmailService(config *EmailConfig) (*CloudCentinelEmailService, error) {
-	if config.BaseURL == "" {
+	if config.ServiceURL == "" {
 		return nil, fmt.Errorf("email service URL is required")
+	}
+
+	if config.VerificationBaseURL == "" {
+		return nil, fmt.Errorf("email verification base URL is required")
+	}
+
+	if config.PasswordResetBaseURL == "" {
+		return nil, fmt.Errorf("email password reset base URL is required")
 	}
 
 	timeout := config.Timeout
@@ -44,21 +51,32 @@ func NewCloudCentinelEmailService(config *EmailConfig) (*CloudCentinelEmailServi
 		timeout = 10 * time.Second
 	}
 
-	log.Printf("[EMAIL_INIT] Initializing CloudCentinel email service")
-	log.Printf("[EMAIL_INIT] Service URL: %s", config.BaseURL)
+	log.Printf("[EMAIL_INIT] Initializing CloudCentinel email service with custom HTML templates")
+	log.Printf("[EMAIL_INIT] Service URL: %s", config.ServiceURL)
+	log.Printf("[EMAIL_INIT] Verification Base URL: %s", config.VerificationBaseURL)
+	log.Printf("[EMAIL_INIT] Password Reset Base URL: %s", config.PasswordResetBaseURL)
 	log.Printf("[EMAIL_INIT] Timeout: %v", timeout)
 
 	return &CloudCentinelEmailService{
 		client: &http.Client{
 			Timeout: timeout,
 		},
-		serviceURL: config.BaseURL,
-		config:     config,
+		serviceURL:           config.ServiceURL,
+		verificationBaseURL:  config.VerificationBaseURL,
+		passwordResetBaseURL: config.PasswordResetBaseURL,
+		config:               config,
 	}, nil
 }
 
-// sendEmail is a helper method to send email requests to CloudCentinel service
-func (s *CloudCentinelEmailService) sendEmail(ctx context.Context, req *CloudCentinelEmailRequest) error {
+// sendCustomEmail is a helper method to send custom HTML email requests to CloudCentinel service
+func (s *CloudCentinelEmailService) sendCustomEmail(ctx context.Context, to, subject, htmlContent string) error {
+	// Create custom email request
+	req := &CustomEmailRequest{
+		To:      to,
+		Subject: subject,
+		HTML:    htmlContent,
+	}
+
 	// Marshal request body
 	jsonData, err := json.Marshal(req)
 	if err != nil {
@@ -67,12 +85,10 @@ func (s *CloudCentinelEmailService) sendEmail(ctx context.Context, req *CloudCen
 	}
 
 	log.Printf("[EMAIL] ========== EMAIL REQUEST START ==========")
-	log.Printf("[EMAIL] Type: %s", req.Type)
 	log.Printf("[EMAIL] To: %s", req.To)
-	log.Printf("[EMAIL] Name: %s", req.Name)
-	log.Printf("[EMAIL] Token: %s", req.Token)
+	log.Printf("[EMAIL] Subject: %s", req.Subject)
+	log.Printf("[EMAIL] HTML Length: %d bytes", len(req.HTML))
 	log.Printf("[EMAIL] Target URL: %s", s.serviceURL)
-	log.Printf("[EMAIL] Request body: %s", string(jsonData))
 
 	// Create HTTP request
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", s.serviceURL, bytes.NewBuffer(jsonData))
@@ -85,8 +101,6 @@ func (s *CloudCentinelEmailService) sendEmail(ctx context.Context, req *CloudCen
 	httpReq.Header.Set("Content-Type", "application/json")
 	log.Printf("[EMAIL] Request Method: %s", httpReq.Method)
 	log.Printf("[EMAIL] Request URL (full): %s", httpReq.URL.String())
-	log.Printf("[EMAIL] Request Host: %s", httpReq.Host)
-	log.Printf("[EMAIL] Request Headers: %v", httpReq.Header)
 
 	// Send request
 	log.Printf("[EMAIL] Sending HTTP request now...")
@@ -114,25 +128,19 @@ func (s *CloudCentinelEmailService) sendEmail(ctx context.Context, req *CloudCen
 	// Check status code
 	if resp.StatusCode != http.StatusOK {
 		log.Printf("[EMAIL] ERROR: Non-OK status code %d", resp.StatusCode)
-		var errorResp CloudCentinelEmailResponse
-		if err := json.Unmarshal(body, &errorResp); err != nil {
-			log.Printf("[EMAIL] ERROR: Failed to parse error response: %v", err)
-			return fmt.Errorf("email service returned status %d: %s", resp.StatusCode, string(body))
-		}
-		log.Printf("[EMAIL] ERROR: Email service error: %s", errorResp.Error)
-		return fmt.Errorf("email service error: %s", errorResp.Error)
+		return fmt.Errorf("email service returned status %d: %s", resp.StatusCode, string(body))
 	}
 
 	// Parse success response
-	var successResp CloudCentinelEmailResponse
+	var successResp EmailResponse
 	if err := json.Unmarshal(body, &successResp); err != nil {
 		log.Printf("[EMAIL] ERROR: Failed to parse success response: %v", err)
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	if !successResp.Success {
-		log.Printf("[EMAIL] ERROR: Email service returned success=false: %s", successResp.Error)
-		return fmt.Errorf("email service returned success=false: %s", successResp.Error)
+	if successResp.Status != "sent" {
+		log.Printf("[EMAIL] ERROR: Email service returned unexpected status: %s", successResp.Status)
+		return fmt.Errorf("email service returned unexpected status: %s", successResp.Status)
 	}
 
 	log.Printf("[EMAIL] SUCCESS: Email sent successfully")
@@ -142,14 +150,15 @@ func (s *CloudCentinelEmailService) sendEmail(ctx context.Context, req *CloudCen
 
 // SendVerificationEmail sends an email verification link to the user
 func (s *CloudCentinelEmailService) SendVerificationEmail(ctx context.Context, to, name, token string) error {
-	req := &CloudCentinelEmailRequest{
-		Type:  "verification",
-		To:    to,
-		Name:  name,
-		Token: token,
-	}
+	// Build verification URL with query parameter
+	verificationURL := fmt.Sprintf("%s?token=%s", s.verificationBaseURL, token)
 
-	if err := s.sendEmail(ctx, req); err != nil {
+	// Generate HTML content using template
+	htmlContent := VerificationEmailTemplate(name, verificationURL)
+
+	// Send email with custom HTML
+	subject := "Verify Your Email Address"
+	if err := s.sendCustomEmail(ctx, to, subject, htmlContent); err != nil {
 		log.Printf("Failed to send verification email to %s: %v", to, err)
 		return fmt.Errorf("failed to send verification email: %w", err)
 	}
@@ -160,14 +169,15 @@ func (s *CloudCentinelEmailService) SendVerificationEmail(ctx context.Context, t
 
 // SendPasswordResetEmail sends a password reset link to the user
 func (s *CloudCentinelEmailService) SendPasswordResetEmail(ctx context.Context, to, name, token string) error {
-	req := &CloudCentinelEmailRequest{
-		Type:  "password_reset",
-		To:    to,
-		Name:  name,
-		Token: token,
-	}
+	// Build password reset URL with query parameter
+	resetURL := fmt.Sprintf("%s?token=%s", s.passwordResetBaseURL, token)
 
-	if err := s.sendEmail(ctx, req); err != nil {
+	// Generate HTML content using template
+	htmlContent := PasswordResetEmailTemplate(name, resetURL)
+
+	// Send email with custom HTML
+	subject := "Reset Your Password"
+	if err := s.sendCustomEmail(ctx, to, subject, htmlContent); err != nil {
 		log.Printf("Failed to send password reset email to %s: %v", to, err)
 		return fmt.Errorf("failed to send password reset email: %w", err)
 	}
@@ -178,13 +188,12 @@ func (s *CloudCentinelEmailService) SendPasswordResetEmail(ctx context.Context, 
 
 // SendWelcomeEmail sends a welcome email to newly verified users
 func (s *CloudCentinelEmailService) SendWelcomeEmail(ctx context.Context, to, name string) error {
-	req := &CloudCentinelEmailRequest{
-		Type: "welcome",
-		To:   to,
-		Name: name,
-	}
+	// Generate HTML content using template
+	htmlContent := WelcomeEmailTemplate(name)
 
-	if err := s.sendEmail(ctx, req); err != nil {
+	// Send email with custom HTML
+	subject := "Welcome to Our Platform!"
+	if err := s.sendCustomEmail(ctx, to, subject, htmlContent); err != nil {
 		log.Printf("Failed to send welcome email to %s: %v", to, err)
 		return fmt.Errorf("failed to send welcome email: %w", err)
 	}
@@ -195,13 +204,12 @@ func (s *CloudCentinelEmailService) SendWelcomeEmail(ctx context.Context, to, na
 
 // SendPasswordChangedEmail sends a notification when password is changed
 func (s *CloudCentinelEmailService) SendPasswordChangedEmail(ctx context.Context, to, name string) error {
-	req := &CloudCentinelEmailRequest{
-		Type: "password_changed",
-		To:   to,
-		Name: name,
-	}
+	// Generate HTML content using template
+	htmlContent := PasswordChangedEmailTemplate(name)
 
-	if err := s.sendEmail(ctx, req); err != nil {
+	// Send email with custom HTML
+	subject := "Your Password Has Been Changed"
+	if err := s.sendCustomEmail(ctx, to, subject, htmlContent); err != nil {
 		log.Printf("Failed to send password changed email to %s: %v", to, err)
 		return fmt.Errorf("failed to send password changed email: %w", err)
 	}
