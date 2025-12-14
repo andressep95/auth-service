@@ -1,11 +1,13 @@
 package handler
 
 import (
-	"github.com/gofiber/fiber/v2"
-	"github.com/google/uuid"
+	"log"
+
 	"github.com/andressep95/auth-service/internal/domain"
 	"github.com/andressep95/auth-service/internal/service"
 	"github.com/andressep95/auth-service/pkg/validator"
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 )
 
 type UserHandler struct {
@@ -23,14 +25,24 @@ func NewUserHandler(userService *service.UserService, validator *validator.Valid
 // Register handles user registration
 // POST /api/v1/auth/register
 func (h *UserHandler) Register(c *fiber.Ctx) error {
+	// Log raw body for debugging
+	body := c.Body()
+	log.Printf("[USER_HANDLER] Raw body (len=%d): %s", len(body), string(body))
+	log.Printf("[USER_HANDLER] Content-Type: %s", c.Get("Content-Type"))
+
 	var req service.RegisterRequest
 	if err := c.BodyParser(&req); err != nil {
+		log.Printf("[USER_HANDLER] BodyParser error: %v", err)
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid request body",
+			"error": "Invalid request body: " + err.Error(),
 		})
 	}
 
+	log.Printf("[USER_HANDLER] Register request parsed: AppID=%s, Email=%s, FirstName=%s, LastName=%s",
+		req.AppID, req.Email, req.FirstName, req.LastName)
+
 	if err := h.validator.Validate(req); err != nil {
+		log.Printf("[USER_HANDLER] Validation error: %v", err)
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": err.Error(),
 		})

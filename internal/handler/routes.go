@@ -38,6 +38,7 @@ func SetupRoutes(
 	authPages.Get("/register", authPageHandler.ShowRegister)
 	authPages.Get("/register-invitation", authPageHandler.ShowRegisterInvitation)
 	authPages.Get("/verify-email", authPageHandler.ShowVerifyEmail)
+	authPages.Get("/forgot-password", authPageHandler.ShowForgotPassword)
 	authPages.Get("/reset-password", authPageHandler.ShowResetPassword)
 
 	// API v1

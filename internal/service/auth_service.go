@@ -36,10 +36,10 @@ type AuthService struct {
 }
 
 type LoginRequest struct {
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required,min=8"`
-	AppID    string `json:"app_id" validate:"omitempty,uuid"`     // Optional, defaults to base app
-	TenantID string `json:"tenant_id" validate:"omitempty,uuid"` // Optional, defaults to public tenant
+	Email    string `json:"email" form:"email" validate:"required,email"`
+	Password string `json:"password" form:"password" validate:"required,min=8"`
+	AppID    string `json:"app_id" form:"app_id" validate:"omitempty,uuid"`            // Optional, defaults to base app
+	TenantID string `json:"tenant_id" form:"tenant_id" validate:"omitempty,uuid"`      // Optional, defaults to public tenant
 }
 
 type LoginResponse struct {

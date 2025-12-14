@@ -198,6 +198,49 @@ func (h *AuthPageHandler) ShowVerifyEmail(c *fiber.Ctx) error {
 	return c.Render("verify-email", data, "layout")
 }
 
+// ShowForgotPassword renders the forgot password page
+// GET /auth/forgot-password?app_id=xxx
+func (h *AuthPageHandler) ShowForgotPassword(c *fiber.Ctx) error {
+	log.Printf("[AUTH_PAGE] ShowForgotPassword called - Path: %s", c.Path())
+
+	appIDStr := c.Query("app_id", "7057e69d-818b-45db-b39b-9d1c84aca142") // Default app
+	appID, err := uuid.Parse(appIDStr)
+	if err != nil {
+		appID, _ = uuid.Parse("7057e69d-818b-45db-b39b-9d1c84aca142")
+	}
+
+	app, err := h.appService.GetAppByID(c.Context(), appID.String())
+	if err != nil {
+		// Use default values if app not found
+		log.Printf("[AUTH_PAGE] App not found, using defaults for forgot-password")
+		defaultData := fiber.Map{
+			"Title":        "Recuperar contraseña",
+			"AppName":      "Auth Service",
+			"AppID":        appIDStr,
+			"PrimaryColor": "#3B82F6",
+			"Subtitle":     "Solicita un enlace de recuperación",
+			"Content":      "forgot-password-content",
+		}
+		return c.Render("forgot-password", defaultData, "layout")
+	}
+
+	data := fiber.Map{
+		"Title":        "Recuperar contraseña",
+		"AppName":      app.Name,
+		"AppID":        app.ID.String(),
+		"PrimaryColor": app.PrimaryColor,
+		"Subtitle":     "Solicita un enlace de recuperación",
+	}
+
+	if app.LogoURL != nil {
+		data["Logo"] = *app.LogoURL
+	}
+
+	log.Printf("[AUTH_PAGE] Rendering forgot-password template with data: Title=%s, AppID=%s", data["Title"], data["AppID"])
+	data["Content"] = "forgot-password-content"
+	return c.Render("forgot-password", data, "layout")
+}
+
 // ShowResetPassword renders the reset password page
 // GET /auth/reset-password?token=xxx
 func (h *AuthPageHandler) ShowResetPassword(c *fiber.Ctx) error {

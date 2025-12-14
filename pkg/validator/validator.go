@@ -3,6 +3,7 @@ package validator
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
@@ -13,8 +14,23 @@ type Validator struct {
 }
 
 func NewValidator() *Validator {
+	v := validator.New()
+
+	// Use JSON tag names instead of struct field names for error messages
+	v.RegisterTagNameFunc(func(fld reflect.StructField) string {
+		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
+		if name == "-" {
+			return ""
+		}
+		if name == "" {
+			// If no JSON tag, use the field name in lowercase
+			return strings.ToLower(fld.Name)
+		}
+		return name
+	})
+
 	return &Validator{
-		validate: validator.New(),
+		validate: v,
 	}
 }
 

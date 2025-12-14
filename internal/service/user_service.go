@@ -28,12 +28,13 @@ type UserService struct {
 }
 
 type RegisterRequest struct {
-	AppID     string `json:"app_id" validate:"omitempty,uuid"`     // Optional, defaults to base app
-	TenantID  string `json:"tenant_id" validate:"omitempty,uuid"`  // Optional, defaults to public tenant
-	Email     string `json:"email" validate:"required,email"`
-	Password  string `json:"password" validate:"required,min=8"`
-	FirstName string `json:"first_name" validate:"required"`
-	LastName  string `json:"last_name" validate:"required"`
+	AppID     string `json:"app_id" form:"app_id" validate:"omitempty,uuid"`            // Optional, defaults to base app
+	TenantID  string `json:"tenant_id" form:"tenant_id" validate:"omitempty,uuid"`      // Optional, defaults to public tenant
+	Email     string `json:"email" form:"email" validate:"required,email"`
+	Password  string `json:"password" form:"password" validate:"required,min=8"`
+	FirstName string `json:"first_name" form:"first_name" validate:"required"`
+	LastName  string `json:"last_name" form:"last_name" validate:"required"`
+	PhoneNumber string `json:"phone_number,omitempty" form:"phone_number"`
 }
 
 func NewUserService(userRepo repository.UserRepository, tenantRepo repository.TenantRepository, appRepo repository.AppRepository, sessionRepo repository.SessionRepository, emailService email.EmailService, cfg *config.Config) *UserService {

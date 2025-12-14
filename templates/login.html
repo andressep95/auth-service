@@ -1,59 +1,181 @@
 {{define "login-content"}}
-{{if .Error}}
-<div class="alert alert-error">
-    {{.Error}}
-</div>
-{{end}}
+<div id="serverError" class="alert alert-error" style="display: none;"></div>
 
 <form id="loginForm" method="POST" action="/api/v1/auth/login">
     <input type="hidden" name="app_id" value="{{.AppID}}">
 
-    <div class="form-group">
-        <label for="email">Correo electrónico</label>
+    <div class="field">
+        <label for="email">Email</label>
         <input
             type="email"
             id="email"
             name="email"
-            placeholder="tu@email.com"
-            required
+            placeholder="usuario@ejemplo.com"
             autocomplete="email"
             autofocus
         >
+        <small class="p-error" id="emailError" style="display: none;"></small>
     </div>
 
-    <div class="form-group">
+    <div class="field">
         <label for="password">Contraseña</label>
-        <input
-            type="password"
-            id="password"
-            name="password"
-            placeholder="Tu contraseña"
-            required
-            autocomplete="current-password"
-        >
+        <div class="password-wrapper">
+            <input
+                type="password"
+                id="password"
+                name="password"
+                placeholder="Ingresa tu contraseña"
+                autocomplete="current-password"
+            >
+            <i class="password-toggle" id="passwordToggle" onclick="togglePasswordVisibility('password', 'passwordToggle')">
+                👁️
+            </i>
+        </div>
+        <small class="p-error" id="passwordError" style="display: none;"></small>
     </div>
 
-    <div class="form-group" style="text-align: right;">
-        <a href="/auth/forgot-password?app_id={{.AppID}}" style="color: {{.PrimaryColor}}; font-size: 14px; text-decoration: none;">
-            ¿Olvidaste tu contraseña?
-        </a>
+    <div class="forgot-password-link">
+        <a href="/auth/forgot-password?app_id={{.AppID}}">¿Olvidaste tu contraseña?</a>
     </div>
 
-    <div id="loading" class="loading">
-        <div class="spinner"></div>
-        <p style="margin-top: 12px; color: #718096;">Iniciando sesión...</p>
-    </div>
-
-    <button type="submit" class="btn">
-        Iniciar sesión
+    <button type="submit" class="btn submit-button" id="submitBtn">
+        <span id="btnText">Iniciar Sesión</span>
+        <div class="btn-spinner" id="btnSpinner" style="display: none;"></div>
     </button>
+
+    <div class="register-link">
+        <span>¿No tienes cuenta? </span>
+        <a href="/auth/register?app_id={{.AppID}}" class="link-button">Regístrate</a>
+    </div>
 </form>
 
-<div class="divider">
-    ¿No tienes cuenta? <a href="/auth/register?app_id={{.AppID}}" style="color: {{.PrimaryColor}};">Regístrate</a>
-</div>
-
 <script>
-    handleFormSubmit('loginForm', '/api/v1/auth/login');
+    (function() {
+        const form = document.getElementById('loginForm');
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+        const emailError = document.getElementById('emailError');
+        const passwordError = document.getElementById('passwordError');
+        const serverError = document.getElementById('serverError');
+        const submitBtn = document.getElementById('submitBtn');
+        const btnText = document.getElementById('btnText');
+        const btnSpinner = document.getElementById('btnSpinner');
+
+        // Validación en tiempo real
+        emailInput.addEventListener('blur', validateEmail);
+        passwordInput.addEventListener('blur', validatePassword);
+
+        function validateEmail() {
+            const value = emailInput.value.trim();
+            if (!value) {
+                showError(emailError, 'El email es requerido');
+                emailInput.classList.add('p-invalid');
+                return false;
+            }
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+                showError(emailError, 'El email no es válido');
+                emailInput.classList.add('p-invalid');
+                return false;
+            }
+            hideError(emailError);
+            emailInput.classList.remove('p-invalid');
+            return true;
+        }
+
+        function validatePassword() {
+            const value = passwordInput.value;
+            if (!value) {
+                showError(passwordError, 'La contraseña es requerida');
+                passwordInput.classList.add('p-invalid');
+                return false;
+            }
+            hideError(passwordError);
+            passwordInput.classList.remove('p-invalid');
+            return true;
+        }
+
+        function showError(element, message) {
+            element.textContent = message;
+            element.style.display = 'block';
+        }
+
+        function hideError(element) {
+            element.style.display = 'none';
+        }
+
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            // Validar todos los campos
+            const emailValid = validateEmail();
+            const passwordValid = validatePassword();
+
+            if (!emailValid || !passwordValid) {
+                return;
+            }
+
+            // Mostrar loading
+            submitBtn.disabled = true;
+            btnText.style.display = 'none';
+            btnSpinner.style.display = 'inline-block';
+            serverError.style.display = 'none';
+
+            // Preparar datos
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+
+            try {
+                const response = await fetch('/api/v1/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data),
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    // Login exitoso
+                    if (result.redirect_url) {
+                        window.location.href = result.redirect_url;
+                    } else {
+                        serverError.className = 'alert alert-success';
+                        serverError.textContent = '¡Login exitoso!';
+                        serverError.style.display = 'block';
+                        setTimeout(() => {
+                            window.location.href = '/dashboard';
+                        }, 1000);
+                    }
+                } else {
+                    // Error de login
+                    serverError.className = 'alert alert-error';
+                    serverError.textContent = result.error || 'Error al iniciar sesión';
+                    serverError.style.display = 'block';
+                }
+            } catch (error) {
+                serverError.className = 'alert alert-error';
+                serverError.textContent = 'Error de conexión. Por favor, intenta nuevamente.';
+                serverError.style.display = 'block';
+            } finally {
+                submitBtn.disabled = false;
+                btnText.style.display = 'inline';
+                btnSpinner.style.display = 'none';
+            }
+        });
+    })();
+
+    function togglePasswordVisibility(inputId, iconId) {
+        const input = document.getElementById(inputId);
+        const icon = document.getElementById(iconId);
+
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.textContent = '🙈';
+        } else {
+            input.type = 'password';
+            icon.textContent = '👁️';
+        }
+    }
 </script>
 {{end}}

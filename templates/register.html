@@ -1,115 +1,366 @@
 {{define "register-content"}}
-{{if .Error}}
-<div class="alert alert-error">
-    {{.Error}}
-</div>
-{{end}}
+<div id="serverError" class="alert alert-error" style="display: none;"></div>
 
+<!-- Formulario de Registro -->
+<div id="registerFormWrapper">
 <form id="registerForm" method="POST" action="/api/v1/auth/register">
     <input type="hidden" name="app_id" value="{{.AppID}}">
 
-    <div class="form-group">
-        <label for="email">Correo electrónico</label>
-        <input
-            type="email"
-            id="email"
-            name="email"
-            placeholder="tu@email.com"
-            required
-            autocomplete="email"
-        >
-    </div>
-
-    <div class="form-group">
-        <label for="password">Contraseña</label>
-        <input
-            type="password"
-            id="password"
-            name="password"
-            placeholder="Mínimo 8 caracteres"
-            required
-            autocomplete="new-password"
-            minlength="8"
-        >
-        <small style="color: #718096; font-size: 12px; display: block; margin-top: 4px;">
-            Debe contener mayúsculas, minúsculas, números y caracteres especiales
-        </small>
-    </div>
-
-    <div class="form-group">
-        <label for="password_confirm">Confirmar contraseña</label>
-        <input
-            type="password"
-            id="password_confirm"
-            name="password_confirm"
-            placeholder="Repite tu contraseña"
-            required
-            autocomplete="new-password"
-        >
-    </div>
-
-    <div class="form-group">
+    <div class="field">
         <label for="first_name">Nombre</label>
         <input
             type="text"
             id="first_name"
             name="first_name"
-            placeholder="Juan"
-            required
+            placeholder="Ingresa tu nombre"
             autocomplete="given-name"
         >
+        <small class="p-error" id="firstNameError" style="display: none;"></small>
     </div>
 
-    <div class="form-group">
+    <div class="field">
         <label for="last_name">Apellido</label>
         <input
             type="text"
             id="last_name"
             name="last_name"
-            placeholder="Pérez"
-            required
+            placeholder="Ingresa tu apellido"
             autocomplete="family-name"
         >
+        <small class="p-error" id="lastNameError" style="display: none;"></small>
     </div>
 
-    <div class="form-group">
-        <label for="phone_number">Teléfono (opcional)</label>
+    <div class="field">
+        <label for="email">Email</label>
         <input
-            type="text"
-            id="phone_number"
-            name="phone_number"
-            placeholder="+56912345678"
-            autocomplete="tel"
+            type="email"
+            id="email"
+            name="email"
+            placeholder="usuario@ejemplo.com"
+            autocomplete="email"
         >
+        <small class="p-error" id="emailError" style="display: none;"></small>
     </div>
 
-    <div id="loading" class="loading">
-        <div class="spinner"></div>
-        <p style="margin-top: 12px; color: #718096;">Creando tu cuenta...</p>
+    <div class="field">
+        <label for="password">Contraseña</label>
+        <div class="password-wrapper">
+            <input
+                type="password"
+                id="password"
+                name="password"
+                placeholder="Ingresa tu contraseña"
+                autocomplete="new-password"
+            >
+            <i class="password-toggle" id="passwordToggle" onclick="togglePasswordVisibility('password', 'passwordToggle')">
+                👁️
+            </i>
+        </div>
+        <small class="p-error" id="passwordError" style="display: none;"></small>
     </div>
 
-    <button type="submit" class="btn">
-        Crear cuenta
+    <div class="field">
+        <label for="password_confirm">Confirmar Contraseña</label>
+        <div class="password-wrapper">
+            <input
+                type="password"
+                id="password_confirm"
+                name="password_confirm"
+                placeholder="Confirma tu contraseña"
+                autocomplete="new-password"
+            >
+            <i class="password-toggle" id="confirmToggle" onclick="togglePasswordVisibility('password_confirm', 'confirmToggle')">
+                👁️
+            </i>
+        </div>
+        <small class="p-error" id="confirmPasswordError" style="display: none;"></small>
+    </div>
+
+    <button type="submit" class="btn submit-button" id="submitBtn">
+        <span id="btnText">Registrarse</span>
+        <div class="btn-spinner" id="btnSpinner" style="display: none;"></div>
     </button>
-</form>
 
-<div class="divider">
-    ¿Ya tienes cuenta? <a href="/auth/login?app_id={{.AppID}}" style="color: {{.PrimaryColor}};">Iniciar sesión</a>
+    <div class="login-link">
+        <span>¿Ya tienes cuenta? </span>
+        <a href="/auth/login?app_id={{.AppID}}" class="link-button">Inicia sesión</a>
+    </div>
+</form>
+</div>
+
+<!-- Vista de Éxito -->
+<div id="successView" class="success-view" style="display: none;">
+    <div class="success-content">
+        <div class="success-icon-wrapper">
+            <div class="success-icon">✉️</div>
+        </div>
+        <h2>¡Registro exitoso!</h2>
+        <p>Hemos enviado un enlace de verificación a tu correo electrónico.</p>
+        <p class="email-display" id="successEmail"></p>
+        <p class="instructions">Por favor revisa tu bandeja de entrada y haz clic en el enlace para activar tu cuenta.</p>
+
+        <button type="button" class="btn action-button" onclick="goToLogin()">
+            Ir al Login
+        </button>
+    </div>
 </div>
 
 <script>
-    // Password validation
-    const password = document.getElementById('password');
-    const passwordConfirm = document.getElementById('password_confirm');
+    (function() {
+        const form = document.getElementById('registerForm');
+        const firstNameInput = document.getElementById('first_name');
+        const lastNameInput = document.getElementById('last_name');
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+        const confirmPasswordInput = document.getElementById('password_confirm');
 
-    passwordConfirm.addEventListener('input', function() {
-        if (password.value !== passwordConfirm.value) {
-            passwordConfirm.setCustomValidity('Las contraseñas no coinciden');
-        } else {
-            passwordConfirm.setCustomValidity('');
+        const firstNameError = document.getElementById('firstNameError');
+        const lastNameError = document.getElementById('lastNameError');
+        const emailError = document.getElementById('emailError');
+        const passwordError = document.getElementById('passwordError');
+        const confirmPasswordError = document.getElementById('confirmPasswordError');
+        const serverError = document.getElementById('serverError');
+
+        const submitBtn = document.getElementById('submitBtn');
+        const btnText = document.getElementById('btnText');
+        const btnSpinner = document.getElementById('btnSpinner');
+
+        // Validación en tiempo real
+        firstNameInput.addEventListener('blur', validateFirstName);
+        lastNameInput.addEventListener('blur', validateLastName);
+        emailInput.addEventListener('blur', validateEmail);
+        passwordInput.addEventListener('blur', validatePassword);
+        confirmPasswordInput.addEventListener('blur', validateConfirmPassword);
+
+        function validateFirstName() {
+            const value = firstNameInput.value.trim();
+            if (!value) {
+                showError(firstNameError, 'El nombre es requerido');
+                firstNameInput.classList.add('p-invalid');
+                return false;
+            }
+            hideError(firstNameError);
+            firstNameInput.classList.remove('p-invalid');
+            return true;
         }
-    });
 
-    handleFormSubmit('registerForm', '/api/v1/auth/register');
+        function validateLastName() {
+            const value = lastNameInput.value.trim();
+            if (!value) {
+                showError(lastNameError, 'El apellido es requerido');
+                lastNameInput.classList.add('p-invalid');
+                return false;
+            }
+            hideError(lastNameError);
+            lastNameInput.classList.remove('p-invalid');
+            return true;
+        }
+
+        function validateEmail() {
+            const value = emailInput.value.trim();
+            if (!value) {
+                showError(emailError, 'El email es requerido');
+                emailInput.classList.add('p-invalid');
+                return false;
+            }
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+                showError(emailError, 'El email no es válido');
+                emailInput.classList.add('p-invalid');
+                return false;
+            }
+            hideError(emailError);
+            emailInput.classList.remove('p-invalid');
+            return true;
+        }
+
+        function validatePassword() {
+            const value = passwordInput.value;
+            if (!value) {
+                showError(passwordError, 'La contraseña es requerida');
+                passwordInput.classList.add('p-invalid');
+                return false;
+            }
+            if (value.length < 8) {
+                showError(passwordError, 'La contraseña debe tener al menos 8 caracteres');
+                passwordInput.classList.add('p-invalid');
+                return false;
+            }
+            hideError(passwordError);
+            passwordInput.classList.remove('p-invalid');
+            return true;
+        }
+
+        function validateConfirmPassword() {
+            const value = confirmPasswordInput.value;
+            if (!value) {
+                showError(confirmPasswordError, 'Confirma tu contraseña');
+                confirmPasswordInput.classList.add('p-invalid');
+                return false;
+            }
+            if (value !== passwordInput.value) {
+                showError(confirmPasswordError, 'Las contraseñas no coinciden');
+                confirmPasswordInput.classList.add('p-invalid');
+                return false;
+            }
+            hideError(confirmPasswordError);
+            confirmPasswordInput.classList.remove('p-invalid');
+            return true;
+        }
+
+        function showError(element, message) {
+            element.textContent = message;
+            element.style.display = 'block';
+        }
+
+        function hideError(element) {
+            element.style.display = 'none';
+        }
+
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            // Validar todos los campos
+            const firstNameValid = validateFirstName();
+            const lastNameValid = validateLastName();
+            const emailValid = validateEmail();
+            const passwordValid = validatePassword();
+            const confirmPasswordValid = validateConfirmPassword();
+
+            if (!firstNameValid || !lastNameValid || !emailValid || !passwordValid || !confirmPasswordValid) {
+                return;
+            }
+
+            // Mostrar loading
+            submitBtn.disabled = true;
+            btnText.style.display = 'none';
+            btnSpinner.style.display = 'inline-block';
+            serverError.style.display = 'none';
+
+            // Preparar datos
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+            // Eliminar password_confirm antes de enviar
+            delete data.password_confirm;
+
+            try {
+                const response = await fetch('/api/v1/auth/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data),
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    // Registro exitoso - mostrar vista de éxito
+                    showSuccessView(emailInput.value);
+                } else {
+                    // Error de registro
+                    serverError.className = 'alert alert-error';
+                    serverError.textContent = result.error || 'Error al registrarse';
+                    serverError.style.display = 'block';
+                }
+            } catch (error) {
+                serverError.className = 'alert alert-error';
+                serverError.textContent = 'Error de conexión. Por favor, intenta nuevamente.';
+                serverError.style.display = 'block';
+            } finally {
+                submitBtn.disabled = false;
+                btnText.style.display = 'inline';
+                btnSpinner.style.display = 'none';
+            }
+        });
+    })();
+
+    function showSuccessView(email) {
+        // Ocultar formulario
+        document.getElementById('registerFormWrapper').style.display = 'none';
+        document.getElementById('serverError').style.display = 'none';
+
+        // Mostrar vista de éxito
+        document.getElementById('successEmail').textContent = email;
+        document.getElementById('successView').style.display = 'block';
+    }
+
+    function goToLogin() {
+        window.location.href = '/auth/login?app_id={{.AppID}}';
+    }
+
+    function togglePasswordVisibility(inputId, iconId) {
+        const input = document.getElementById(inputId);
+        const icon = document.getElementById(iconId);
+
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.textContent = '🙈';
+        } else {
+            input.type = 'password';
+            icon.textContent = '👁️';
+        }
+    }
 </script>
+
+<style>
+    .success-view {
+        text-align: center;
+        padding: 2rem 0;
+    }
+
+    .success-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .success-icon-wrapper {
+        margin-bottom: 1rem;
+    }
+
+    .success-icon {
+        font-size: 4rem;
+        display: inline-block;
+        padding: 1.5rem;
+        background: linear-gradient(135deg, {{.PrimaryColor}}22, {{.PrimaryColor}}44);
+        border-radius: 50%;
+        width: 100px;
+        height: 100px;
+        line-height: 100px;
+        text-align: center;
+    }
+
+    .success-content h2 {
+        margin: 0;
+        color: #1f2937;
+        font-size: 24px;
+        font-weight: 600;
+    }
+
+    .success-content p {
+        margin: 0;
+        color: #6b7280;
+        line-height: 1.5;
+    }
+
+    .email-display {
+        font-weight: 600;
+        color: {{.PrimaryColor}};
+        background: {{.PrimaryColor}}22;
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        margin: 0.5rem 0 !important;
+    }
+
+    .instructions {
+        font-size: 0.9rem;
+        margin-bottom: 1rem !important;
+    }
+
+    .action-button {
+        margin-top: 1rem;
+        min-width: 200px;
+    }
+</style>
 {{end}}

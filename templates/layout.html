@@ -179,6 +179,118 @@
             100% { transform: rotate(360deg); }
         }
 
+        /* PrimeVue-like styles */
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .field label {
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .p-error {
+            color: #e53e3e;
+            font-size: 12px;
+            margin-top: 0.25rem;
+        }
+
+        input.p-invalid {
+            border-color: #fc8181;
+        }
+
+        input.p-invalid:focus {
+            border-color: #e53e3e;
+            box-shadow: 0 0 0 3px rgba(229, 62, 62, 0.1);
+        }
+
+        .password-wrapper {
+            position: relative;
+            width: 100%;
+        }
+
+        .password-wrapper input {
+            width: 100%;
+            padding-right: 3rem;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            font-size: 18px;
+            user-select: none;
+            color: #718096;
+            transition: color 0.2s;
+        }
+
+        .password-toggle:hover {
+            color: {{.PrimaryColor}};
+        }
+
+        .submit-button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .submit-button:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .btn-spinner {
+            border: 2px solid #ffffff44;
+            border-top: 2px solid #ffffff;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            animation: spin 0.8s linear infinite;
+        }
+
+        .forgot-password-link {
+            text-align: right;
+            margin-top: 0.5rem;
+        }
+
+        .forgot-password-link a {
+            color: {{.PrimaryColor}};
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+
+        .forgot-password-link a:hover {
+            text-decoration: underline;
+        }
+
+        .register-link,
+        .login-link {
+            text-align: center;
+            margin-top: 1rem;
+        }
+
+        .link-button {
+            color: {{.PrimaryColor}};
+            text-decoration: none;
+            font-weight: 600;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+            font-size: inherit;
+        }
+
+        .link-button:hover {
+            text-decoration: underline;
+        }
+
         @media (max-width: 480px) {
             .container {
                 padding: 30px 24px;
@@ -237,6 +349,10 @@
                 // Get form data
                 const formData = new FormData(form);
                 const data = Object.fromEntries(formData.entries());
+                
+                // Debug: log what we're sending
+                console.log('Sending data:', data);
+                console.log('JSON body:', JSON.stringify(data));
 
                 try {
                     const response = await fetch(endpoint, {
@@ -258,7 +374,8 @@
                         }
                     } else {
                         // Error
-                        showAlert('error', result.message || 'An error occurred');
+                        console.error('Error response:', result);
+                        showAlert('error', result.error || result.message || 'An error occurred');
                     }
                 } catch (error) {
                     showAlert('error', 'Network error. Please try again.');
@@ -282,6 +399,25 @@
 
             setTimeout(() => alert.remove(), 5000);
         }
+
+        // Initialize forms after DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            // Auto-initialize forms based on their IDs
+            const registerForm = document.getElementById('registerForm');
+            if (registerForm && typeof handleFormSubmit === 'function') {
+                handleFormSubmit('registerForm', '/api/v1/auth/register');
+            }
+
+            const loginForm = document.getElementById('loginForm');
+            if (loginForm && typeof handleFormSubmit === 'function') {
+                handleFormSubmit('loginForm', '/api/v1/auth/login');
+            }
+
+            const resetForm = document.getElementById('resetForm');
+            if (resetForm && typeof handleFormSubmit === 'function') {
+                handleFormSubmit('resetForm', '/api/v1/auth/reset-password');
+            }
+        });
     </script>
 </body>
 </html>

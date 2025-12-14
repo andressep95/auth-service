@@ -125,6 +125,13 @@ info:
         - "✅ GET /api/v1/auth/validate-invitation/:token - Validar token (público)"
         - "✅ Agregados schemas: Tenant, TenantInvitation"
         - "🔒 Aislamiento de usuarios por tenant (app_id + tenant_id + email)"
+        - "🎨 Documentados endpoints HTML (Web UI)"
+        - "✅ GET /auth/login - Página de login con formulario"
+        - "✅ GET /auth/register - Página de registro de usuarios"
+        - "✅ GET /auth/register-invitation - Registro con token de invitación"
+        - "✅ GET /auth/reset-password - Página de reset de contraseña"
+        - "✅ GET /auth/verify-email - Página de verificación de email"
+        - "🔧 Agregados tags form a RegisterRequest y LoginRequest para soportar formularios HTML"
     - version: 1.4.0
       date: 2024-12-07
       changes:
@@ -186,6 +193,8 @@ tags:
     description: Configuración inicial del sistema
   - name: Authentication
     description: Registro, login, refresh y logout
+  - name: Web UI
+    description: Páginas HTML servidas por el servicio (login, registro, reset password)
   - name: Users
     description: Gestión de perfil de usuario
   - name: Roles
@@ -384,6 +393,228 @@ paths:
                     type: string
                     example: Super admin already exists. This endpoint can only be used once.
 
+  # ===== WEB UI (HTML PAGES) =====
+  /auth/login:
+    get:
+      tags:
+        - Web UI
+      summary: Página de login (HTML)
+      description: |
+        Sirve la página HTML de login con formulario de autenticación.
+
+        **Características:**
+        - Formulario con email, password y app_id
+        - Validación de campos en el frontend
+        - JavaScript para enviar datos a POST /api/v1/auth/login
+        - Interfaz responsive con diseño moderno
+        - Loading spinner durante autenticación
+
+        **Query params opcionales:**
+        - `app_id`: Pre-rellena el app_id en el formulario
+        - `redirect_url`: URL a donde redirigir después del login exitoso
+      security: []
+      parameters:
+        - name: app_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: UUID de la aplicación
+          example: 7057e69d-818b-45db-b39b-9d1c84aca142
+        - name: redirect_url
+          in: query
+          schema:
+            type: string
+            format: uri
+          description: URL de redirección después del login
+          example: https://app.example.com/dashboard
+      responses:
+        '200':
+          description: Página HTML de login
+          content:
+            text/html:
+              schema:
+                type: string
+                example: <!DOCTYPE html>...
+
+  /auth/register:
+    get:
+      tags:
+        - Web UI
+      summary: Página de registro (HTML)
+      description: |
+        Sirve la página HTML de registro de nuevos usuarios.
+
+        **Características:**
+        - Formulario con email, password, first_name, last_name, phone_number
+        - Validación de fortaleza de contraseña en tiempo real
+        - Confirmación de contraseña con validación
+        - JavaScript para enviar datos a POST /api/v1/auth/register
+        - Interfaz responsive con diseño moderno
+        - Mensaje de éxito con instrucciones de verificación de email
+
+        **Query params requeridos:**
+        - `app_id`: Especifica en qué aplicación se registra el usuario
+      security: []
+      parameters:
+        - name: app_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID de la aplicación donde se registrará el usuario
+          example: 7057e69d-818b-45db-b39b-9d1c84aca142
+      responses:
+        '200':
+          description: Página HTML de registro
+          content:
+            text/html:
+              schema:
+                type: string
+                example: <!DOCTYPE html>...
+        '400':
+          description: app_id faltante o inválido
+          content:
+            text/html:
+              schema:
+                type: string
+                example: Error - app_id is required
+
+  /auth/register-invitation:
+    get:
+      tags:
+        - Web UI
+        - Tenants
+      summary: Página de registro con invitación (HTML)
+      description: |
+        Sirve la página HTML de registro usando un token de invitación a un tenant.
+
+        **Flujo:**
+        1. Usuario recibe link con token de invitación
+        2. Esta página valida el token con GET /api/v1/auth/validate-invitation/{token}
+        3. Muestra información del tenant al que será invitado
+        4. Formulario de registro con campos de usuario
+        5. Al registrarse, se une automáticamente al tenant
+
+        **Características:**
+        - Validación automática del token al cargar la página
+        - Muestra nombre y tipo del tenant
+        - Formulario de registro pre-configurado
+        - Manejo de tokens expirados o inválidos
+      security: []
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Token de invitación recibido por email
+          example: dGhpc19pc19hX3NhbXBsZV90b2tlbl9mb3JfZGVtb25zdHJhdGlvbg==
+      responses:
+        '200':
+          description: Página HTML de registro con invitación
+          content:
+            text/html:
+              schema:
+                type: string
+                example: <!DOCTYPE html>...
+        '400':
+          description: Token faltante, inválido o expirado
+          content:
+            text/html:
+              schema:
+                type: string
+                example: Error - Invalid or expired invitation token
+
+  /auth/reset-password:
+    get:
+      tags:
+        - Web UI
+      summary: Página de reset de contraseña (HTML)
+      description: |
+        Sirve la página HTML para resetear la contraseña con token.
+
+        **Flujo:**
+        1. Usuario solicita reset en /auth/forgot-password
+        2. Recibe email con link que incluye token
+        3. Esta página muestra formulario para nueva contraseña
+        4. JavaScript envía datos a POST /api/v1/auth/reset-password
+
+        **Características:**
+        - Validación de fortaleza de contraseña
+        - Confirmación de contraseña
+        - Manejo de tokens expirados
+        - Mensaje de éxito con link a login
+      security: []
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Token de reset recibido por email
+          example: a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6
+      responses:
+        '200':
+          description: Página HTML de reset de contraseña
+          content:
+            text/html:
+              schema:
+                type: string
+                example: <!DOCTYPE html>...
+        '400':
+          description: Token faltante o inválido
+          content:
+            text/html:
+              schema:
+                type: string
+                example: Error - Reset token is required
+
+  /auth/verify-email:
+    get:
+      tags:
+        - Web UI
+      summary: Página de verificación de email (HTML)
+      description: |
+        Sirve la página HTML de verificación de email con procesamiento automático.
+
+        **Flujo:**
+        1. Usuario recibe email de verificación con link
+        2. Esta página automáticamente verifica el token usando GET /api/v1/auth/verify-email/{token}
+        3. Muestra mensaje de éxito o error
+        4. Redirige a login después de 3 segundos si exitoso
+
+        **Características:**
+        - Verificación automática al cargar la página
+        - Mensaje de éxito con countdown para redirección
+        - Manejo de tokens expirados con opción de reenvío
+        - Link directo a página de login
+      security: []
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Token de verificación recibido por email
+          example: a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6
+      responses:
+        '200':
+          description: Página HTML de verificación de email
+          content:
+            text/html:
+              schema:
+                type: string
+                example: <!DOCTYPE html>...
+        '400':
+          description: Token faltante, inválido o expirado
+          content:
+            text/html:
+              schema:
+                type: string
+                example: Error - Verification token is required or expired
+
   # ===== AUTHENTICATION =====
   /api/v1/auth/register:
     post:
@@ -393,11 +624,21 @@ paths:
       description: |
         Crea un nuevo usuario en el sistema. El rol "user" se asigna automáticamente.
         La contraseña debe cumplir con los requisitos de seguridad.
+
+        **Content-Type soportados:**
+        - `application/json` - Para requests desde APIs/SPA
+        - `application/x-www-form-urlencoded` - Para formularios HTML tradicionales
+
+        **Nota:** Los tags `form` fueron agregados a los structs Go para soportar
+        ambos formatos de contenido en el mismo endpoint.
       security: []
       requestBody:
         required: true
         content:
           application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+          application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/RegisterRequest'
       responses:
@@ -433,11 +674,21 @@ paths:
         - Refresh Token: 7 días de validez
 
         El sistema bloquea la cuenta después de 5 intentos fallidos.
+
+        **Content-Type soportados:**
+        - `application/json` - Para requests desde APIs/SPA
+        - `application/x-www-form-urlencoded` - Para formularios HTML tradicionales
+
+        **Nota:** Los tags `form` fueron agregados a los structs Go para soportar
+        ambos formatos de contenido en el mismo endpoint.
       security: []
       requestBody:
         required: true
         content:
           application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+          application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/LoginRequest'
       responses:
@@ -2106,6 +2357,9 @@ components:
     # ===== REQUEST SCHEMAS =====
     RegisterRequest:
       type: object
+      description: |
+        Schema de registro de usuarios que soporta tanto JSON como form data.
+        Los structs Go incluyen tags `json` y `form` para parsear ambos formatos.
       required:
         - app_id
         - email
@@ -2152,6 +2406,9 @@ components:
 
     LoginRequest:
       type: object
+      description: |
+        Schema de login que soporta tanto JSON como form data.
+        Los structs Go incluyen tags `json` y `form` para parsear ambos formatos.
       required:
         - email
         - password
