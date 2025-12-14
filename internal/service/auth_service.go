@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"log"
 	"time"
 
@@ -28,6 +29,7 @@ type AuthService struct {
 	userRepo       repository.UserRepository
 	tenantRepo     repository.TenantRepository
 	sessionRepo    repository.SessionRepository
+	roleRepo       repository.RoleRepository
 	tokenService   *jwt.TokenService
 	tokenBlacklist *blacklist.TokenBlacklist
 	cfg            *config.Config
@@ -57,6 +59,7 @@ func NewAuthService(
 	userRepo repository.UserRepository,
 	tenantRepo repository.TenantRepository,
 	sessionRepo repository.SessionRepository,
+	roleRepo repository.RoleRepository,
 	tokenService *jwt.TokenService,
 	tokenBlacklist *blacklist.TokenBlacklist,
 	cfg *config.Config,
@@ -65,6 +68,7 @@ func NewAuthService(
 		userRepo:       userRepo,
 		tenantRepo:     tenantRepo,
 		sessionRepo:    sessionRepo,
+		roleRepo:       roleRepo,
 		tokenService:   tokenService,
 		tokenBlacklist: tokenBlacklist,
 		cfg:            cfg,
@@ -383,4 +387,143 @@ func (s *AuthService) InvalidateAllUserSessions(ctx context.Context, userID uuid
 func hashToken(token string) string {
 	hash := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(hash[:])
+}
+
+// RegisterWithInvitationRequest represents the registration with invitation request
+type RegisterWithInvitationRequest struct {
+	Token       string `json:"token" validate:"required"`
+	Email       string `json:"email" validate:"required,email"`
+	Password    string `json:"password" validate:"required,min=8"`
+	FirstName   string `json:"first_name" validate:"required"`
+	LastName    string `json:"last_name" validate:"required"`
+	PhoneNumber string `json:"phone_number,omitempty"`
+}
+
+// RegisterWithInvitation registers a new user using an invitation token
+func (s *AuthService) RegisterWithInvitation(ctx context.Context, req RegisterWithInvitationRequest, tenantService *TenantService, appService *AppService) (*LoginResponse, string, error) {
+	// 1. Validate invitation token
+	invitation, tenant, err := tenantService.ValidateInvitationToken(ctx, req.Token)
+	if err != nil {
+		return nil, "", errors.New("invalid or expired invitation token")
+	}
+
+	// 2. Check if email already exists in this tenant
+	existingUser, _ := s.userRepo.GetByEmailAppAndTenant(ctx, req.Email, tenant.AppID, tenant.ID)
+	if existingUser != nil {
+		return nil, "", errors.New("email already registered in this workspace")
+	}
+
+	// 3. Check tenant quota
+	if tenant.MaxUsers != nil && tenant.CurrentUsersCount >= *tenant.MaxUsers {
+		return nil, "", errors.New("workspace has reached maximum user limit")
+	}
+
+	// 4. Hash password
+	passwordHash, err := hash.HashPassword(req.Password)
+	if err != nil {
+		return nil, "", err
+	}
+
+	// 5. Create user
+	user := &domain.User{
+		ID:            uuid.New(),
+		AppID:         tenant.AppID,
+		TenantID:      tenant.ID,
+		Email:         req.Email,
+		PasswordHash:  passwordHash,
+		FirstName:     req.FirstName,
+		LastName:      req.LastName,
+		Status:        domain.UserStatusActive,
+		EmailVerified: false,
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
+	}
+
+	if err := s.userRepo.Create(ctx, user); err != nil {
+		return nil, "", err
+	}
+
+	// 6. Assign role (from invitation or default "user" role)
+	var roleID uuid.UUID
+	if invitation.RoleID != nil {
+		roleID = *invitation.RoleID
+	} else {
+		// Get default "user" role for this app
+		role, err := s.roleRepo.GetByName(ctx, tenant.AppID, "user")
+		if err != nil || role == nil {
+			return nil, "", errors.New("default user role not found")
+		}
+		roleID = role.ID
+	}
+
+	if err := s.roleRepo.AssignRoleToUser(ctx, user.ID, roleID); err != nil {
+		// Rollback user creation if role assignment fails
+		_ = s.userRepo.Delete(ctx, user.ID)
+		return nil, "", errors.New("failed to assign role to user")
+	}
+
+	// 7. Increment invitation usage counter
+	if err := tenantService.UseInvitation(ctx, invitation.ID); err != nil {
+		log.Printf("Warning: Failed to increment invitation usage: %v", err)
+	}
+
+	// 8. Get user roles for token
+	roles, err := s.roleRepo.GetUserRolesByApp(ctx, user.ID, user.AppID)
+	if err != nil {
+		roles = []*domain.Role{} // Empty roles if fetch fails
+	}
+
+	roleNames := make([]string, len(roles))
+	for i, role := range roles {
+		roleNames[i] = role.Name
+	}
+
+	// 9. Generate tokens
+	tokenPair, err := s.tokenService.GenerateTokenPair(user, roleNames, user.AppID, nil)
+	if err != nil {
+		return nil, "", err
+	}
+
+	// 10. Create session
+	refreshTokenHash := hashToken(tokenPair.RefreshToken)
+	session := &domain.Session{
+		ID:               uuid.New(),
+		UserID:           user.ID,
+		AppID:            user.AppID,
+		TenantID:         user.TenantID,
+		RefreshTokenHash: refreshTokenHash,
+		ExpiresAt:        tokenPair.ExpiresAt.Add(7 * 24 * time.Hour), // 7 days
+		CreatedAt:        time.Now(),
+	}
+
+	if err := s.sessionRepo.Create(ctx, session); err != nil {
+		log.Printf("Warning: Failed to create session: %v", err)
+	}
+
+	// 11. Get app redirect URL
+	app, err := appService.GetAppByID(ctx, tenant.AppID.String())
+	if err != nil {
+		return nil, "", errors.New("app not found")
+	}
+
+	// 12. Build redirect URL with tokens
+	redirectURL := fmt.Sprintf("%s?access_token=%s&refresh_token=%s&tenant_id=%s",
+		app.RedirectURL,
+		tokenPair.AccessToken,
+		tokenPair.RefreshToken,
+		tenant.ID.String(),
+	)
+
+	response := &LoginResponse{
+		Tokens: tokenPair,
+		User: &UserDTO{
+			ID:        user.ID,
+			Email:     user.Email,
+			FirstName: user.FirstName,
+			LastName:  user.LastName,
+			TenantID:  user.TenantID,
+		},
+	}
+
+	return response, redirectURL, nil
 }

@@ -10,8 +10,11 @@ import (
 )
 
 type AuthHandler struct {
-	authService *service.AuthService
-	validator   *validator.Validator
+	authService   *service.AuthService
+	tenantService *service.TenantService
+	appService    *service.AppService
+	roleService   *service.RoleService
+	validator     *validator.Validator
 }
 
 func NewAuthHandler(authService *service.AuthService, validator *validator.Validator) *AuthHandler {
@@ -19,6 +22,13 @@ func NewAuthHandler(authService *service.AuthService, validator *validator.Valid
 		authService: authService,
 		validator:   validator,
 	}
+}
+
+// SetServices sets additional services needed for some endpoints
+func (h *AuthHandler) SetServices(tenantService *service.TenantService, appService *service.AppService, roleService *service.RoleService) {
+	h.tenantService = tenantService
+	h.appService = appService
+	h.roleService = roleService
 }
 
 // Login handles user login
@@ -124,5 +134,46 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "Logged out successfully",
+	})
+}
+
+// RegisterWithInvitation handles user registration with invitation token
+// POST /api/v1/auth/register-with-invitation
+func (h *AuthHandler) RegisterWithInvitation(c *fiber.Ctx) error {
+	var req service.RegisterWithInvitationRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":   true,
+			"message": "Invalid request body",
+		})
+	}
+
+	if err := h.validator.Validate(req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":   true,
+			"message": err.Error(),
+		})
+	}
+
+	resp, redirectURL, err := h.authService.RegisterWithInvitation(
+		c.Context(),
+		req,
+		h.tenantService,
+		h.appService,
+	)
+
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":   true,
+			"message": err.Error(),
+		})
+	}
+
+	// Return response with redirect URL
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"message":      "Registration successful",
+		"user":         resp.User,
+		"tokens":       resp.Tokens,
+		"redirect_url": redirectURL,
 	})
 }

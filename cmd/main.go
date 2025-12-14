@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/template/html/v2"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
@@ -69,6 +70,7 @@ func main() {
 	// Initialize repositories
 	userRepo := postgres.NewUserRepository(db)
 	tenantRepo := postgres.NewTenantRepository(db)
+	invitationRepo := postgres.NewInvitationRepository(db)
 	appRepo := postgres.NewAppRepository(db)
 	sessionRepo := postgres.NewSessionRepository(db)
 	roleRepo := postgres.NewRoleRepository(db)
@@ -109,15 +111,22 @@ func main() {
 	}
 
 	// Initialize services
-	authService := service.NewAuthService(userRepo, tenantRepo, sessionRepo, tokenService, tokenBlacklist, cfg)
+	authService := service.NewAuthService(userRepo, tenantRepo, sessionRepo, roleRepo, tokenService, tokenBlacklist, cfg)
 	userService := service.NewUserService(userRepo, tenantRepo, appRepo, sessionRepo, emailService, cfg)
 	roleService := service.NewRoleService(roleRepo, userRepo)
+	tenantService := service.NewTenantService(tenantRepo, invitationRepo, userRepo)
 
 	// Set circular dependency: UserService needs AuthService for token blacklisting
 	userService.SetAuthService(authService)
 
 	// Initialize app service
 	appService := service.NewAppService(appRepo)
+
+	// Load HTML templates engine for Fiber
+	engine := html.New("./templates", ".html")
+	engine.Reload(true) // Enable auto-reload for development
+	engine.Debug(true)  // Enable debug mode to see template resolution
+	log.Println("✓ HTML template engine initialized")
 
 	// Initialize handlers
 	authHandler := handler.NewAuthHandler(authService, validate)
@@ -129,14 +138,20 @@ func main() {
 	jwksHandler := handler.NewJWKSHandler(tokenService.GetPublicKey(), "2024-12-01")
 	setupHandler := handler.NewSetupHandler(userService, roleService, validate)
 	appHandler := handler.NewAppHandler(appService, validate)
+	tenantHandler := handler.NewTenantHandler(tenantService, validate)
+	authPageHandler := handler.NewAuthPageHandler(appService, tenantService)
 
-	// Create Fiber app
+	// Inject additional services into auth handler
+	authHandler.SetServices(tenantService, appService, roleService)
+
+	// Create Fiber app with template engine
 	app := fiber.New(fiber.Config{
 		AppName:               "Auth Service v1.0",
 		DisableStartupMessage: false,
 		ErrorHandler:          customErrorHandler,
 		ReadTimeout:           cfg.Server.ReadTimeout,
 		WriteTimeout:          cfg.Server.WriteTimeout,
+		Views:                 engine,
 	})
 
 	// Setup global middlewares
@@ -162,6 +177,8 @@ func main() {
 		jwksHandler,
 		setupHandler,
 		appHandler,
+		tenantHandler,
+		authPageHandler,
 		authMiddleware,
 		requireAdmin,
 		requireModerator,

@@ -30,6 +30,9 @@ COPY --from=builder /app/main .
 # Copy migrations
 COPY migrations ./migrations
 
+# Copy templates
+COPY templates ./templates
+
 # Copy entrypoint script
 COPY docker-entrypoint.sh .
 RUN chmod +x docker-entrypoint.sh

@@ -15,6 +15,8 @@ func SetupRoutes(
 	jwksHandler *JWKSHandler,
 	setupHandler *SetupHandler,
 	appHandler *AppHandler,
+	tenantHandler *TenantHandler,
+	authPageHandler *AuthPageHandler,
 	authMiddleware fiber.Handler,
 	requireAdmin fiber.Handler,
 	requireModerator fiber.Handler,
@@ -30,6 +32,13 @@ func SetupRoutes(
 	// Setup endpoint (public, one-time use)
 	app.Post("/api/v1/setup/super-admin", setupHandler.CreateSuperAdmin)
 
+	// HTML auth pages (public)
+	authPages := app.Group("/auth")
+	authPages.Get("/login", authPageHandler.ShowLogin)
+	authPages.Get("/register", authPageHandler.ShowRegister)
+	authPages.Get("/register-invitation", authPageHandler.ShowRegisterInvitation)
+	authPages.Get("/reset-password", authPageHandler.ShowResetPassword)
+
 	// API v1
 	api := app.Group("/api/v1")
 
@@ -43,6 +52,7 @@ func SetupRoutes(
 	auth.Post("/resend-verification", userHandler.ResendVerificationEmail)
 	auth.Post("/forgot-password", userHandler.ForgotPassword)
 	auth.Post("/reset-password", userHandler.ResetPassword)
+	auth.Post("/register-with-invitation", authHandler.RegisterWithInvitation)
 
 	// User routes (protected)
 	users := api.Group("/users", authMiddleware)
@@ -85,4 +95,19 @@ func SetupRoutes(
 	superAdmin.Post("/apps", appHandler.CreateApp)
 	superAdmin.Get("/apps", appHandler.ListApps)
 	superAdmin.Get("/apps/:id", appHandler.GetApp)
+
+	// Tenant management routes (admin only)
+	tenants := admin.Group("/tenants")
+	tenants.Post("/", tenantHandler.CreateTenant)
+	tenants.Get("/", tenantHandler.ListTenants)
+	tenants.Get("/:id", tenantHandler.GetTenant)
+	tenants.Put("/:id", tenantHandler.UpdateTenant)
+
+	// Invitation management routes (admin only)
+	tenants.Post("/:id/invitations", tenantHandler.CreateInvitation)
+	tenants.Get("/:id/invitations", tenantHandler.ListInvitations)
+	tenants.Delete("/:id/invitations/:invitationId", tenantHandler.RevokeInvitation)
+
+	// Public invitation validation (no auth required)
+	auth.Get("/validate-invitation/:token", tenantHandler.ValidateInvitation)
 }

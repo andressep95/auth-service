@@ -196,14 +196,14 @@ create_admin_user() {
     fi
     
     # Promover a admin
-    local admin_role_id="20000000-0000-0000-0000-000000000002"
+    local super_admin_role_id="10000000-0000-0000-0000-000000000001"
     if docker-compose exec -T postgres psql -U auth -d authdb -c \
         "INSERT INTO user_roles (user_id, role_id, assigned_at)
-         VALUES ('$user_id', '$admin_role_id', NOW())
+         VALUES ('$user_id', '$super_admin_role_id', NOW())
          ON CONFLICT (user_id, role_id) DO NOTHING;" &>/dev/null; then
-        echo -e "${GREEN}✓ Rol admin asignado${NC}"
+        echo -e "${GREEN}✓ Rol super_admin asignado${NC}"
     else
-        echo -e "${RED}❌ Error asignando rol admin${NC}"
+        echo -e "${RED}❌ Error asignando rol super_admin${NC}"
         return 1
     fi
     

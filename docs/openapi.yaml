@@ -7,10 +7,78 @@ info:
     - Gestión de sesiones con JWT (RS256)
     - Sistema RBAC (Role-Based Access Control)
     - Control de acceso granular con permisos
-    - Multi-tenancy mediante App ID
+    - Multi-tenancy completo (Apps + Tenants)
     - Token blacklist con invalidación por timestamp
     - Reset de contraseña seguro con email
-    
+    - Sistema de invitaciones por token
+
+    ## Sistema Multi-Tenant
+
+    El servicio implementa multi-tenancy en dos niveles:
+
+    ### 1. Apps (Aplicaciones)
+    Nivel superior de aislamiento. Cada aplicación tiene:
+    - Sus propios roles y permisos
+    - Sus propios tenants
+    - Aislamiento completo de datos
+
+    ### 2. Tenants (Workspaces/Organizaciones)
+    Nivel secundario dentro de una app. Cada tenant tiene:
+    - Sus propios usuarios (aislamiento por `app_id + tenant_id + email`)
+    - Control de cuotas (máximo de usuarios)
+    - Sistema de invitaciones por token
+    - 3 tipos: `public` (default), `workspace`, `enterprise`
+
+    **Constraint de unicidad:** `UNIQUE(app_id, tenant_id, email)`
+
+    ## Sistema RBAC (Roles & Permisos)
+
+    El sistema implementa control de acceso basado en roles con permisos granulares.
+
+    ### Roles por Defecto
+    Cada app tiene 4 roles creados automáticamente:
+    - `user`: Permisos básicos (read:own)
+    - `moderator`: Permisos de moderación
+    - `admin`: Permisos administrativos completos
+    - `super_admin`: Acceso total al sistema
+
+    ### Permisos Granulares
+    22 permisos implementados sobre recursos:
+    - `users`: read:own, update:own, read:all, update:all, delete:all
+    - `roles`: read, create, update, delete, assign
+    - `sessions`: read:own, manage:own, read:all, manage:all
+    - `apps`: read, create, update, delete
+    - `tenants`: read, create, update, delete, manage
+
+    ### Uso de Permisos vs Roles
+
+    **Actualmente en rutas:** Se usa verificación de roles
+    ```go
+    admin.Get("/users", userHandler.ListUsers) // Requiere rol admin
+    ```
+
+    **Disponible con permisos:** Más granular y flexible
+    ```go
+    admin.Get("/users",
+        middleware.RequirePermission(roleService, "users", "read:all"),
+        userHandler.ListUsers,
+    )
+    ```
+
+    Los permisos se agregan automáticamente a través de:
+    - **Repository:** `HasPermission(userID, resource, action)`
+    - **Service:** `roleService.HasPermission(ctx, userID, "users", "read:all")`
+    - **Middleware:** `RequirePermission(roleService, "users", "read:all")`
+
+    **Query de verificación:**
+    ```sql
+    SELECT COUNT(*) FROM permissions p
+    INNER JOIN role_permissions rp ON p.id = rp.permission_id
+    INNER JOIN roles r ON rp.role_id = r.id
+    INNER JOIN user_roles ur ON r.id = ur.role_id
+    WHERE ur.user_id = $1 AND p.resource = $2 AND p.action = $3
+    ```
+
     ## Sistema de Token Blacklist
     
     El servicio implementa un sistema de blacklist de dos niveles:
@@ -36,7 +104,7 @@ info:
     - ✅ Invalidar todos los tokens antiguos
     - ✅ Permitir nuevos logins inmediatamente
     - ✅ Evitar bloqueos permanentes del usuario
-  version: 1.4.0
+  version: 1.5.0
   contact:
     name: API Support
     email: support@authservice.com
@@ -44,6 +112,19 @@ info:
     name: MIT
     url: https://opensource.org/licenses/MIT
   x-changelog:
+    - version: 1.5.0
+      date: 2024-12-14
+      changes:
+        - "✅ Implementado Multi-Tenancy completo con Tenants e Invitaciones"
+        - "✅ POST /api/v1/admin/tenants - Crear tenant (workspace/organization)"
+        - "✅ GET /api/v1/admin/tenants - Listar tenants con paginación"
+        - "✅ PUT /api/v1/admin/tenants/:id - Actualizar tenant"
+        - "✅ POST /api/v1/admin/tenants/:id/invitations - Crear invitación con token"
+        - "✅ GET /api/v1/admin/tenants/:id/invitations - Listar invitaciones"
+        - "✅ DELETE /api/v1/admin/tenants/:id/invitations/:invId - Revocar invitación"
+        - "✅ GET /api/v1/auth/validate-invitation/:token - Validar token (público)"
+        - "✅ Agregados schemas: Tenant, TenantInvitation"
+        - "🔒 Aislamiento de usuarios por tenant (app_id + tenant_id + email)"
     - version: 1.4.0
       date: 2024-12-07
       changes:
@@ -113,6 +194,8 @@ tags:
     description: Consulta de permisos
   - name: Apps
     description: Gestión de aplicaciones (Super Admin)
+  - name: Tenants
+    description: Gestión de tenants/workspaces (Admin)
 
 security:
   - BearerAuth: []
@@ -1475,6 +1558,518 @@ paths:
                     type: string
                     example: App not found
 
+  # ===== ADMIN - TENANT MANAGEMENT =====
+  /api/v1/admin/tenants:
+    post:
+      tags:
+        - Tenants
+      summary: Crear nuevo tenant
+      description: |
+        Crea un nuevo tenant (workspace/organización) dentro de una aplicación.
+        **Requiere rol:** admin
+
+        **Tipos de tenant:**
+        - `public`: Tenant público por defecto (creado automáticamente)
+        - `workspace`: Workspace privado para equipos/organizaciones
+        - `enterprise`: Tenant empresarial con cuotas personalizadas
+
+        **Características:**
+        - Aislamiento completo de usuarios por tenant
+        - Control de cuotas (máximo de usuarios)
+        - Invitaciones por token para unirse al tenant
+        - Slug único para URLs amigables
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - app_id
+                - name
+              properties:
+                app_id:
+                  type: string
+                  format: uuid
+                  description: UUID de la aplicación
+                  example: 7057e69d-818b-45db-b39b-9d1c84aca142
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 255
+                  description: Nombre del tenant
+                  example: Acme Corporation
+                slug:
+                  type: string
+                  minLength: 3
+                  maxLength: 100
+                  pattern: '^[a-z0-9-]+$'
+                  description: Slug único (auto-generado si no se proporciona)
+                  example: acme-corp
+                type:
+                  type: string
+                  enum: [public, workspace, enterprise]
+                  default: workspace
+                  description: Tipo de tenant
+                  example: workspace
+                max_users:
+                  type: integer
+                  minimum: 1
+                  description: Máximo de usuarios permitidos (null = ilimitado)
+                  example: 50
+                owner_id:
+                  type: string
+                  format: uuid
+                  description: UUID del usuario propietario
+                  example: 123e4567-e89b-12d3-a456-426614174000
+      responses:
+        '201':
+          description: Tenant creado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Tenant created successfully
+                  tenant:
+                    $ref: '#/components/schemas/Tenant'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    get:
+      tags:
+        - Tenants
+      summary: Listar tenants
+      description: |
+        Lista todos los tenants de una aplicación con paginación.
+        **Requiere rol:** admin
+      parameters:
+        - name: app_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID de la aplicación
+          example: 7057e69d-818b-45db-b39b-9d1c84aca142
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Número de página
+          example: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Tenants por página
+          example: 20
+      responses:
+        '200':
+          description: Lista de tenants
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tenants:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Tenant'
+                  pagination:
+                    type: object
+                    properties:
+                      page:
+                        type: integer
+                      limit:
+                        type: integer
+                      total:
+                        type: integer
+                      total_pages:
+                        type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/v1/admin/tenants/{id}:
+    get:
+      tags:
+        - Tenants
+      summary: Obtener tenant específico
+      description: |
+        Obtiene los detalles de un tenant por su ID.
+        **Requiere rol:** admin
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID del tenant
+          example: 00000000-0000-0000-0000-000000000001
+      responses:
+        '200':
+          description: Detalles del tenant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - Tenants
+      summary: Actualizar tenant
+      description: |
+        Actualiza la información de un tenant existente.
+        **Requiere rol:** admin
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID del tenant
+          example: 00000000-0000-0000-0000-000000000001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 255
+                  example: Acme Corporation Updated
+                slug:
+                  type: string
+                  minLength: 3
+                  maxLength: 100
+                  pattern: '^[a-z0-9-]+$'
+                  example: acme-corp-v2
+                max_users:
+                  type: integer
+                  minimum: 1
+                  example: 100
+                status:
+                  type: string
+                  enum: [active, suspended, trial]
+                  example: active
+      responses:
+        '200':
+          description: Tenant actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Tenant updated successfully
+                  tenant:
+                    $ref: '#/components/schemas/Tenant'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/admin/tenants/{id}/invitations:
+    post:
+      tags:
+        - Tenants
+      summary: Crear invitación para tenant
+      description: |
+        Crea una invitación con token único para que usuarios se unan al tenant.
+        **Requiere rol:** admin o ser owner del tenant
+
+        **Características del token:**
+        - Generado aleatoriamente (256 bits)
+        - Hasheado con SHA-256 en la base de datos
+        - Solo se muestra una vez en la respuesta
+        - Configurable: usos máximos y expiración
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID del tenant
+          example: 00000000-0000-0000-0000-000000000001
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - expires_in_hours
+              properties:
+                role_id:
+                  type: string
+                  format: uuid
+                  description: Rol a asignar automáticamente al usuario que acepta
+                  example: 20000000-0000-0000-0000-000000000001
+                max_uses:
+                  type: integer
+                  minimum: 1
+                  description: Máximo de usos permitidos (null = ilimitado)
+                  example: 10
+                expires_in_hours:
+                  type: integer
+                  minimum: 1
+                  maximum: 720
+                  description: Horas hasta expiración (máx 30 días)
+                  example: 168
+      responses:
+        '201':
+          description: Invitación creada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Invitation created successfully
+                  invitation:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      tenant_id:
+                        type: string
+                        format: uuid
+                      max_uses:
+                        type: integer
+                      current_uses:
+                        type: integer
+                      expires_at:
+                        type: string
+                        format: date-time
+                      created_at:
+                        type: string
+                        format: date-time
+                  token:
+                    type: string
+                    description: Token de invitación (solo se muestra una vez)
+                    example: dGhpc19pc19hX3NhbXBsZV90b2tlbl9mb3JfZGVtb25zdHJhdGlvbg==
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    get:
+      tags:
+        - Tenants
+      summary: Listar invitaciones del tenant
+      description: |
+        Lista todas las invitaciones creadas para el tenant.
+        **Requiere rol:** admin o ser owner del tenant
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID del tenant
+          example: 00000000-0000-0000-0000-000000000001
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          example: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          example: 20
+      responses:
+        '200':
+          description: Lista de invitaciones
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  invitations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TenantInvitation'
+                  pagination:
+                    type: object
+                    properties:
+                      page:
+                        type: integer
+                      limit:
+                        type: integer
+                      total:
+                        type: integer
+                      total_pages:
+                        type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/admin/tenants/{id}/invitations/{invitationId}:
+    delete:
+      tags:
+        - Tenants
+      summary: Revocar invitación
+      description: |
+        Revoca una invitación activa.
+        **Requiere rol:** admin o ser owner del tenant
+
+        **Efecto:** La invitación cambia a estado "revoked" y no puede usarse.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID del tenant
+          example: 00000000-0000-0000-0000-000000000001
+        - name: invitationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: UUID de la invitación
+          example: 123e4567-e89b-12d3-a456-426614174000
+      responses:
+        '200':
+          description: Invitación revocada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Invitation revoked successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/auth/validate-invitation/{token}:
+    get:
+      tags:
+        - Authentication
+        - Tenants
+      summary: Validar token de invitación
+      description: |
+        Valida un token de invitación antes de usarlo.
+        **Endpoint público** - No requiere autenticación.
+
+        **Validaciones:**
+        - Token existe y es válido
+        - No ha expirado
+        - No ha alcanzado el máximo de usos
+        - El tenant está activo
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Token de invitación recibido
+          example: dGhpc19pc19hX3NhbXBsZV90b2tlbl9mb3JfZGVtb25zdHJhdGlvbg==
+      responses:
+        '200':
+          description: Invitación válida
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                    example: true
+                  tenant:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      name:
+                        type: string
+                        example: Acme Corporation
+                      slug:
+                        type: string
+                        example: acme-corp
+                      type:
+                        type: string
+                        example: workspace
+                  invitation:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      expires_at:
+                        type: string
+                        format: date-time
+        '400':
+          description: Token inválido o expirado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Invalid or expired invitation token
+
 # ===== COMPONENTS =====
 components:
   securitySchemes:
@@ -1612,6 +2207,11 @@ components:
           format: uuid
           description: UUID de la aplicación a la que pertenece el usuario
           example: 7057e69d-818b-45db-b39b-9d1c84aca142
+        tenant_id:
+          type: string
+          format: uuid
+          description: UUID del tenant al que pertenece el usuario
+          example: 00000000-0000-0000-0000-000000000001
         email:
           type: string
           format: email
@@ -1888,6 +2488,134 @@ components:
           type: boolean
           description: Indica si es la sesión actual del usuario
           example: true
+
+    # ===== TENANT SCHEMAS =====
+    Tenant:
+      type: object
+      description: Tenant (workspace/organización) dentro de una aplicación
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID único del tenant
+          example: 00000000-0000-0000-0000-000000000001
+        app_id:
+          type: string
+          format: uuid
+          description: UUID de la aplicación a la que pertenece
+          example: 7057e69d-818b-45db-b39b-9d1c84aca142
+        name:
+          type: string
+          description: Nombre del tenant
+          example: Acme Corporation
+        slug:
+          type: string
+          pattern: '^[a-z0-9-]+$'
+          description: Slug único para URLs
+          example: acme-corp
+        type:
+          type: string
+          enum: [public, workspace, enterprise]
+          description: Tipo de tenant
+          example: workspace
+        owner_id:
+          anyOf:
+            - type: string
+              format: uuid
+            - type: "null"
+          description: UUID del usuario propietario
+          example: 123e4567-e89b-12d3-a456-426614174000
+        max_users:
+          anyOf:
+            - type: integer
+              minimum: 1
+            - type: "null"
+          description: Máximo de usuarios permitidos (null = ilimitado)
+          example: 50
+        current_users_count:
+          type: integer
+          description: Número actual de usuarios (auto-calculado)
+          example: 12
+        status:
+          type: string
+          enum: [active, suspended, trial]
+          description: Estado del tenant
+          example: active
+        metadata:
+          anyOf:
+            - type: object
+              additionalProperties: true
+            - type: "null"
+          description: Metadata adicional en formato JSON
+          example: {"plan": "pro", "billing_email": "billing@acme.com"}
+        created_at:
+          type: string
+          format: date-time
+          description: Fecha de creación
+          example: 2025-01-15T10:00:00Z
+        updated_at:
+          type: string
+          format: date-time
+          description: Fecha de última actualización
+          example: 2025-01-15T10:00:00Z
+
+    TenantInvitation:
+      type: object
+      description: Invitación para unirse a un tenant
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID único de la invitación
+          example: 123e4567-e89b-12d3-a456-426614174000
+        tenant_id:
+          type: string
+          format: uuid
+          description: UUID del tenant
+          example: 00000000-0000-0000-0000-000000000001
+        created_by:
+          type: string
+          format: uuid
+          description: UUID del usuario que creó la invitación
+          example: 123e4567-e89b-12d3-a456-426614174000
+        role_id:
+          anyOf:
+            - type: string
+              format: uuid
+            - type: "null"
+          description: Rol a asignar automáticamente (null = rol default)
+          example: 20000000-0000-0000-0000-000000000001
+        max_uses:
+          anyOf:
+            - type: integer
+              minimum: 1
+            - type: "null"
+          description: Máximo de usos permitidos (null = ilimitado)
+          example: 10
+        current_uses:
+          type: integer
+          description: Número actual de usos
+          example: 3
+        expires_at:
+          type: string
+          format: date-time
+          description: Fecha y hora de expiración
+          example: 2025-01-22T10:00:00Z
+        status:
+          type: string
+          enum: [active, expired, revoked]
+          description: Estado de la invitación
+          example: active
+        created_at:
+          type: string
+          format: date-time
+          description: Fecha de creación
+          example: 2025-01-15T10:00:00Z
+        updated_at:
+          type: string
+          format: date-time
+          description: Fecha de última actualización
+          example: 2025-01-15T10:00:00Z
 
   # ===== RESPONSES =====
   responses:

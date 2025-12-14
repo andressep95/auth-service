@@ -1,0 +1,115 @@
+{{define "register-content"}}
+{{if .Error}}
+<div class="alert alert-error">
+    {{.Error}}
+</div>
+{{end}}
+
+<form id="registerForm" method="POST" action="/api/v1/auth/register">
+    <input type="hidden" name="app_id" value="{{.AppID}}">
+
+    <div class="form-group">
+        <label for="email">Correo electrónico</label>
+        <input
+            type="email"
+            id="email"
+            name="email"
+            placeholder="tu@email.com"
+            required
+            autocomplete="email"
+        >
+    </div>
+
+    <div class="form-group">
+        <label for="password">Contraseña</label>
+        <input
+            type="password"
+            id="password"
+            name="password"
+            placeholder="Mínimo 8 caracteres"
+            required
+            autocomplete="new-password"
+            minlength="8"
+        >
+        <small style="color: #718096; font-size: 12px; display: block; margin-top: 4px;">
+            Debe contener mayúsculas, minúsculas, números y caracteres especiales
+        </small>
+    </div>
+
+    <div class="form-group">
+        <label for="password_confirm">Confirmar contraseña</label>
+        <input
+            type="password"
+            id="password_confirm"
+            name="password_confirm"
+            placeholder="Repite tu contraseña"
+            required
+            autocomplete="new-password"
+        >
+    </div>
+
+    <div class="form-group">
+        <label for="first_name">Nombre</label>
+        <input
+            type="text"
+            id="first_name"
+            name="first_name"
+            placeholder="Juan"
+            required
+            autocomplete="given-name"
+        >
+    </div>
+
+    <div class="form-group">
+        <label for="last_name">Apellido</label>
+        <input
+            type="text"
+            id="last_name"
+            name="last_name"
+            placeholder="Pérez"
+            required
+            autocomplete="family-name"
+        >
+    </div>
+
+    <div class="form-group">
+        <label for="phone_number">Teléfono (opcional)</label>
+        <input
+            type="text"
+            id="phone_number"
+            name="phone_number"
+            placeholder="+56912345678"
+            autocomplete="tel"
+        >
+    </div>
+
+    <div id="loading" class="loading">
+        <div class="spinner"></div>
+        <p style="margin-top: 12px; color: #718096;">Creando tu cuenta...</p>
+    </div>
+
+    <button type="submit" class="btn">
+        Crear cuenta
+    </button>
+</form>
+
+<div class="divider">
+    ¿Ya tienes cuenta? <a href="/auth/login?app_id={{.AppID}}" style="color: {{.PrimaryColor}};">Iniciar sesión</a>
+</div>
+
+<script>
+    // Password validation
+    const password = document.getElementById('password');
+    const passwordConfirm = document.getElementById('password_confirm');
+
+    passwordConfirm.addEventListener('input', function() {
+        if (password.value !== passwordConfirm.value) {
+            passwordConfirm.setCustomValidity('Las contraseñas no coinciden');
+        } else {
+            passwordConfirm.setCustomValidity('');
+        }
+    });
+
+    handleFormSubmit('registerForm', '/api/v1/auth/register');
+</script>
+{{end}}
