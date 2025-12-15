@@ -52,9 +52,16 @@
                 placeholder="Ingresa tu contraseña"
                 autocomplete="new-password"
             >
-            <i class="password-toggle" id="passwordToggle" onclick="togglePasswordVisibility('password', 'passwordToggle')">
-                👁️
-            </i>
+            <button type="button" class="password-toggle" onclick="togglePassword('password', this)">
+                <svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+                <svg class="eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                </svg>
+            </button>
         </div>
         <small class="p-error" id="passwordError" style="display: none;"></small>
     </div>
@@ -69,10 +76,17 @@
                 placeholder="Confirma tu contraseña"
                 autocomplete="new-password"
             >
-            <i class="password-toggle" id="confirmToggle" onclick="togglePasswordVisibility('password_confirm', 'confirmToggle')">
-                👁️
-            </i>
-        </div>
+            <button type="button" class="password-toggle" onclick="togglePassword('password_confirm', this)">
+                <svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+                <svg class="eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                </svg>
+            </button>
+        </div>   
         <small class="p-error" id="confirmPasswordError" style="display: none;"></small>
     </div>
 
@@ -106,166 +120,209 @@
 </div>
 
 <script>
-    (function() {
+    (function () {
+        // -------------------------
+        // State
+        // -------------------------
+        let hasSubmitted = false;
+    
+        // -------------------------
+        // Elements
+        // -------------------------
         const form = document.getElementById('registerForm');
+    
         const firstNameInput = document.getElementById('first_name');
         const lastNameInput = document.getElementById('last_name');
         const emailInput = document.getElementById('email');
         const passwordInput = document.getElementById('password');
         const confirmPasswordInput = document.getElementById('password_confirm');
-
+    
         const firstNameError = document.getElementById('firstNameError');
         const lastNameError = document.getElementById('lastNameError');
         const emailError = document.getElementById('emailError');
         const passwordError = document.getElementById('passwordError');
         const confirmPasswordError = document.getElementById('confirmPasswordError');
         const serverError = document.getElementById('serverError');
-
+    
         const submitBtn = document.getElementById('submitBtn');
         const btnText = document.getElementById('btnText');
         const btnSpinner = document.getElementById('btnSpinner');
+    
+        // -------------------------
+        // Helpers
+        // -------------------------
+        function showError(el, message) {
+            el.textContent = message;
+            el.style.display = 'block';
+        }
+    
+        function hideError(el) {
+            el.textContent = '';
+            el.style.display = 'none';
+        }
+    
+        function setInvalid(input, errorEl, message) {
+            showError(errorEl, message);
+            input.classList.add('p-invalid');
+        }
+    
+        function setValid(input, errorEl) {
+            hideError(errorEl);
+            input.classList.remove('p-invalid');
+        }
+    
+        window.togglePassword = function (inputId, button) {
+            const input = document.getElementById(inputId);
+            const eyeOpen = button.querySelector('.eye-open');
+            const eyeClosed = button.querySelector('.eye-closed');
 
-        // Validación en tiempo real
-        firstNameInput.addEventListener('blur', validateFirstName);
-        lastNameInput.addEventListener('blur', validateLastName);
-        emailInput.addEventListener('blur', validateEmail);
-        passwordInput.addEventListener('blur', validatePassword);
-        confirmPasswordInput.addEventListener('blur', validateConfirmPassword);
+            if (!input || !eyeOpen || !eyeClosed) return;
 
+            if (input.type === 'password') {
+                input.type = 'text';
+                eyeOpen.style.display = 'none';
+                eyeClosed.style.display = 'block';
+            } else {
+                input.type = 'password';
+                eyeOpen.style.display = 'block';
+                eyeClosed.style.display = 'none';
+            }
+        };
+
+
+        // -------------------------
+        // Validators
+        // -------------------------
         function validateFirstName() {
-            const value = firstNameInput.value.trim();
-            if (!value) {
-                showError(firstNameError, 'El nombre es requerido');
-                firstNameInput.classList.add('p-invalid');
+            if (!firstNameInput.value.trim()) {
+                setInvalid(firstNameInput, firstNameError, 'El nombre es requerido');
                 return false;
             }
-            hideError(firstNameError);
-            firstNameInput.classList.remove('p-invalid');
+            setValid(firstNameInput, firstNameError);
             return true;
         }
-
+    
         function validateLastName() {
-            const value = lastNameInput.value.trim();
-            if (!value) {
-                showError(lastNameError, 'El apellido es requerido');
-                lastNameInput.classList.add('p-invalid');
+            if (!lastNameInput.value.trim()) {
+                setInvalid(lastNameInput, lastNameError, 'El apellido es requerido');
                 return false;
             }
-            hideError(lastNameError);
-            lastNameInput.classList.remove('p-invalid');
+            setValid(lastNameInput, lastNameError);
             return true;
         }
-
+    
         function validateEmail() {
             const value = emailInput.value.trim();
             if (!value) {
-                showError(emailError, 'El email es requerido');
-                emailInput.classList.add('p-invalid');
+                setInvalid(emailInput, emailError, 'El email es requerido');
                 return false;
             }
             if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-                showError(emailError, 'El email no es válido');
-                emailInput.classList.add('p-invalid');
+                setInvalid(emailInput, emailError, 'El email no es válido');
                 return false;
             }
-            hideError(emailError);
-            emailInput.classList.remove('p-invalid');
+            setValid(emailInput, emailError);
             return true;
         }
-
+    
         function validatePassword() {
             const value = passwordInput.value;
             if (!value) {
-                showError(passwordError, 'La contraseña es requerida');
-                passwordInput.classList.add('p-invalid');
+                setInvalid(passwordInput, passwordError, 'La contraseña es requerida');
                 return false;
             }
             if (value.length < 8) {
-                showError(passwordError, 'La contraseña debe tener al menos 8 caracteres');
-                passwordInput.classList.add('p-invalid');
+                setInvalid(passwordInput, passwordError, 'La contraseña debe tener al menos 8 caracteres');
                 return false;
             }
-            hideError(passwordError);
-            passwordInput.classList.remove('p-invalid');
+            setValid(passwordInput, passwordError);
             return true;
         }
-
+    
         function validateConfirmPassword() {
             const value = confirmPasswordInput.value;
             if (!value) {
-                showError(confirmPasswordError, 'Confirma tu contraseña');
-                confirmPasswordInput.classList.add('p-invalid');
+                setInvalid(confirmPasswordInput, confirmPasswordError, 'Confirma tu contraseña');
                 return false;
             }
             if (value !== passwordInput.value) {
-                showError(confirmPasswordError, 'Las contraseñas no coinciden');
-                confirmPasswordInput.classList.add('p-invalid');
+                setInvalid(confirmPasswordInput, confirmPasswordError, 'Las contraseñas no coinciden');
                 return false;
             }
-            hideError(confirmPasswordError);
-            confirmPasswordInput.classList.remove('p-invalid');
+            setValid(confirmPasswordInput, confirmPasswordError);
             return true;
         }
-
-        function showError(element, message) {
-            element.textContent = message;
-            element.style.display = 'block';
-        }
-
-        function hideError(element) {
-            element.style.display = 'none';
-        }
-
-        form.addEventListener('submit', async function(e) {
-            e.preventDefault();
-
-            // Validar todos los campos
-            const firstNameValid = validateFirstName();
-            const lastNameValid = validateLastName();
-            const emailValid = validateEmail();
-            const passwordValid = validatePassword();
-            const confirmPasswordValid = validateConfirmPassword();
-
-            if (!firstNameValid || !lastNameValid || !emailValid || !passwordValid || !confirmPasswordValid) {
-                return;
+    
+        function validateFieldById(id) {
+            switch (id) {
+                case 'first_name': return validateFirstName();
+                case 'last_name': return validateLastName();
+                case 'email': return validateEmail();
+                case 'password': return validatePassword();
+                case 'password_confirm': return validateConfirmPassword();
             }
-
-            // Mostrar loading
+        }
+    
+        function validateForm() {
+            return (
+                validateFirstName() &&
+                validateLastName() &&
+                validateEmail() &&
+                validatePassword() &&
+                validateConfirmPassword()
+            );
+        }
+    
+        // -------------------------
+        // Live validation (AFTER submit)
+        // -------------------------
+        [
+            firstNameInput,
+            lastNameInput,
+            emailInput,
+            passwordInput,
+            confirmPasswordInput,
+        ].forEach(input => {
+            input.addEventListener('input', () => {
+                if (!hasSubmitted) return;
+                validateFieldById(input.id);
+            });
+        });
+    
+        // -------------------------
+        // Submit
+        // -------------------------
+        form.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            hasSubmitted = true;
+    
+            if (!validateForm()) return;
+    
             submitBtn.disabled = true;
             btnText.style.display = 'none';
             btnSpinner.style.display = 'inline-block';
-            serverError.style.display = 'none';
-
-            // Preparar datos
+            hideError(serverError);
+    
             const formData = new FormData(form);
             const data = Object.fromEntries(formData.entries());
-            // Eliminar password_confirm antes de enviar
             delete data.password_confirm;
-
+    
             try {
                 const response = await fetch('/api/v1/auth/register', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data),
                 });
-
+    
                 const result = await response.json();
-
+    
                 if (response.ok) {
-                    // Registro exitoso - mostrar vista de éxito
                     showSuccessView(emailInput.value);
                 } else {
-                    // Error de registro
-                    serverError.className = 'alert alert-error';
-                    serverError.textContent = result.error || 'Error al registrarse';
-                    serverError.style.display = 'block';
+                    showError(serverError, result.error || 'Error al registrarse');
                 }
-            } catch (error) {
-                serverError.className = 'alert alert-error';
-                serverError.textContent = 'Error de conexión. Por favor, intenta nuevamente.';
-                serverError.style.display = 'block';
+            } catch {
+                showError(serverError, 'Error de conexión. Intenta nuevamente.');
             } finally {
                 submitBtn.disabled = false;
                 btnText.style.display = 'inline';
@@ -273,36 +330,89 @@
             }
         });
     })();
-
-    function showSuccessView(email) {
-        // Ocultar formulario
-        document.getElementById('registerFormWrapper').style.display = 'none';
-        document.getElementById('serverError').style.display = 'none';
-
-        // Mostrar vista de éxito
-        document.getElementById('successEmail').textContent = email;
-        document.getElementById('successView').style.display = 'block';
-    }
-
-    function goToLogin() {
-        window.location.href = '/auth/login?app_id={{.AppID}}';
-    }
-
-    function togglePasswordVisibility(inputId, iconId) {
-        const input = document.getElementById(inputId);
-        const icon = document.getElementById(iconId);
-
-        if (input.type === 'password') {
-            input.type = 'text';
-            icon.textContent = '🙈';
-        } else {
-            input.type = 'password';
-            icon.textContent = '👁️';
-        }
-    }
 </script>
+    
 
 <style>
+    :root {
+        --primary-color: {{.PrimaryColor}};
+        --text-color: #1F2937;
+        --text-color-secondary: #6B7280;
+        --border-color: #D1D5DB;
+    }
+
+    /* ===== Campos del formulario ===== */
+    .field label {
+        display: block;
+        margin-bottom: 0;
+        color: var(--text-color);
+    }
+
+    .field input {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        box-sizing: border-box;
+    }
+
+    .field input::placeholder {
+        color: var(--text-color-secondary);
+    }
+
+    .field input:focus {
+        border-color: var(--primary-color);
+        outline: none;
+    }
+
+    .field input:focus::placeholder {
+        color: transparent;
+    }
+
+    /* ===== Botón submit ===== */
+    .btn.submit-button {
+        background-color: var(--primary-color);
+        border: none;
+        color: white;
+        padding: 0.5rem 1rem;
+    }
+
+    /* ===== Password toggle ===== */
+    .password-wrapper {
+        position: relative;
+        width: 100%;
+    }
+
+    .password-wrapper input {
+        padding-right: 2.5rem;
+    }
+
+    .password-toggle {
+        position: absolute;
+        right: 0.5rem;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 0.25rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-color-secondary);
+        transition: color 0.2s;
+    }
+
+    .password-toggle:hover {
+        color: var(--primary-color);
+    }
+
+    .password-toggle svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    /* ===== Success view ===== */
     .success-view {
         text-align: center;
         padding: 2rem 0;
@@ -321,21 +431,24 @@
 
     .success-icon {
         font-size: 4rem;
-        display: inline-block;
-        padding: 1.5rem;
-        background: linear-gradient(135deg, {{.PrimaryColor}}22, {{.PrimaryColor}}44);
-        border-radius: 50%;
         width: 100px;
         height: 100px;
         line-height: 100px;
         text-align: center;
+        padding: 1.5rem;
+        border-radius: 50%;
+        background: linear-gradient(
+            135deg,
+            {{.PrimaryColor}}22,
+            {{.PrimaryColor}}44
+        );
     }
 
     .success-content h2 {
         margin: 0;
-        color: #1f2937;
         font-size: 24px;
         font-weight: 600;
+        color: #1f2937;
     }
 
     .success-content p {
@@ -345,12 +458,12 @@
     }
 
     .email-display {
-        font-weight: 600;
-        color: {{.PrimaryColor}};
-        background: {{.PrimaryColor}}22;
+        margin: 0.5rem 0 !important;
         padding: 0.75rem 1.5rem;
         border-radius: 8px;
-        margin: 0.5rem 0 !important;
+        font-weight: 600;
+        color: var(--primary-color);
+        background: {{.PrimaryColor}}22;
     }
 
     .instructions {
@@ -363,4 +476,5 @@
         min-width: 200px;
     }
 </style>
+
 {{end}}

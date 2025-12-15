@@ -13,7 +13,7 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #ffffff;
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -327,9 +327,6 @@
             {{template "reset-password-content" .}}
         {{end}}
 
-        <div class="footer">
-            Powered by <a href="#">Auth Service</a>
-        </div>
     </div>
 
     <script>
@@ -349,10 +346,6 @@
                 // Get form data
                 const formData = new FormData(form);
                 const data = Object.fromEntries(formData.entries());
-                
-                // Debug: log what we're sending
-                console.log('Sending data:', data);
-                console.log('JSON body:', JSON.stringify(data));
 
                 try {
                     const response = await fetch(endpoint, {

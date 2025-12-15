@@ -41,7 +41,7 @@ func (r *appRepository) Create(ctx context.Context, app *domain.App) error {
 
 func (r *appRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.App, error) {
 	query := `
-		SELECT id, name, client_id, client_secret_hash, description, created_at, updated_at
+		SELECT id, name, client_id, client_secret_hash, description, logo_url, primary_color, created_at, updated_at
 		FROM apps
 		WHERE id = $1`
 
