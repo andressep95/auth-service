@@ -27,9 +27,20 @@
                 placeholder="Ingresa tu contraseña"
                 autocomplete="current-password"
             >
-            <i class="password-toggle" id="passwordToggle" onclick="togglePasswordVisibility('password', 'passwordToggle')">
-                👁️
-            </i>
+            <button
+                type="button"
+                class="password-toggle"
+                onclick="togglePassword('password', this)"
+            >
+                <svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+                <svg class="eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                </svg>
+            </button>
         </div>
         <small class="p-error" id="passwordError" style="display: none;"></small>
     </div>
@@ -48,115 +59,123 @@
         <a href="/auth/register?app_id={{.AppID}}" class="link-button">Regístrate</a>
     </div>
 </form>
-
 <script>
-    (function() {
+    (function () {
+        // -------------------------
+        // State
+        // -------------------------
+        let hasSubmitted = false;
+    
+        // -------------------------
+        // Elements
+        // -------------------------
         const form = document.getElementById('loginForm');
         const emailInput = document.getElementById('email');
         const passwordInput = document.getElementById('password');
+    
         const emailError = document.getElementById('emailError');
         const passwordError = document.getElementById('passwordError');
         const serverError = document.getElementById('serverError');
+    
         const submitBtn = document.getElementById('submitBtn');
         const btnText = document.getElementById('btnText');
         const btnSpinner = document.getElementById('btnSpinner');
-
-        // Validación en tiempo real
-        emailInput.addEventListener('blur', validateEmail);
-        passwordInput.addEventListener('blur', validatePassword);
-
+    
+        // -------------------------
+        // Helpers
+        // -------------------------
+        function showError(el, message) {
+            el.textContent = message;
+            el.style.display = 'block';
+        }
+    
+        function hideError(el) {
+            el.textContent = '';
+            el.style.display = 'none';
+        }
+    
+        function setInvalid(input, errorEl, message) {
+            showError(errorEl, message);
+            input.classList.add('p-invalid');
+        }
+    
+        function setValid(input, errorEl) {
+            hideError(errorEl);
+            input.classList.remove('p-invalid');
+        }
+    
+        // -------------------------
+        // Validators
+        // -------------------------
         function validateEmail() {
             const value = emailInput.value.trim();
             if (!value) {
-                showError(emailError, 'El email es requerido');
-                emailInput.classList.add('p-invalid');
+                setInvalid(emailInput, emailError, 'El email es requerido');
                 return false;
             }
             if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-                showError(emailError, 'El email no es válido');
-                emailInput.classList.add('p-invalid');
+                setInvalid(emailInput, emailError, 'El email no es válido');
                 return false;
             }
-            hideError(emailError);
-            emailInput.classList.remove('p-invalid');
+            setValid(emailInput, emailError);
             return true;
         }
-
+    
         function validatePassword() {
-            const value = passwordInput.value;
-            if (!value) {
-                showError(passwordError, 'La contraseña es requerida');
-                passwordInput.classList.add('p-invalid');
+            if (!passwordInput.value) {
+                setInvalid(passwordInput, passwordError, 'La contraseña es requerida');
                 return false;
             }
-            hideError(passwordError);
-            passwordInput.classList.remove('p-invalid');
+            setValid(passwordInput, passwordError);
             return true;
         }
-
-        function showError(element, message) {
-            element.textContent = message;
-            element.style.display = 'block';
+    
+        function validateForm() {
+            return validateEmail() && validatePassword();
         }
-
-        function hideError(element) {
-            element.style.display = 'none';
-        }
-
-        form.addEventListener('submit', async function(e) {
+    
+        // -------------------------
+        // Live validation (after submit)
+        // -------------------------
+        [emailInput, passwordInput].forEach(input => {
+            input.addEventListener('input', () => {
+                if (!hasSubmitted) return;
+                input.id === 'email' ? validateEmail() : validatePassword();
+            });
+        });
+    
+        // -------------------------
+        // Submit
+        // -------------------------
+        form.addEventListener('submit', async (e) => {
             e.preventDefault();
-
-            // Validar todos los campos
-            const emailValid = validateEmail();
-            const passwordValid = validatePassword();
-
-            if (!emailValid || !passwordValid) {
-                return;
-            }
-
-            // Mostrar loading
+            hasSubmitted = true;
+    
+            if (!validateForm()) return;
+    
             submitBtn.disabled = true;
             btnText.style.display = 'none';
             btnSpinner.style.display = 'inline-block';
-            serverError.style.display = 'none';
-
-            // Preparar datos
-            const formData = new FormData(form);
-            const data = Object.fromEntries(formData.entries());
-
+            hideError(serverError);
+    
+            const data = Object.fromEntries(new FormData(form).entries());
+    
             try {
                 const response = await fetch('/api/v1/auth/login', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data),
                 });
-
+    
                 const result = await response.json();
-
+    
                 if (response.ok) {
-                    // Login exitoso
-                    if (result.redirect_url) {
-                        window.location.href = result.redirect_url;
-                    } else {
-                        serverError.className = 'alert alert-success';
-                        serverError.textContent = '¡Login exitoso!';
-                        serverError.style.display = 'block';
-                        setTimeout(() => {
-                            window.location.href = '/dashboard';
-                        }, 1000);
-                    }
+                    window.location.href = result.redirect_url || '/dashboard';
                 } else {
-                    // Error de login
-                    serverError.className = 'alert alert-error';
-                    serverError.textContent = result.error || 'Error al iniciar sesión';
-                    serverError.style.display = 'block';
+                    showError(serverError, result.error || 'Error al iniciar sesión');
                 }
-            } catch (error) {
-                serverError.className = 'alert alert-error';
-                serverError.textContent = 'Error de conexión. Por favor, intenta nuevamente.';
-                serverError.style.display = 'block';
+            } catch {
+                showError(serverError, 'Error de conexión. Intenta nuevamente.');
             } finally {
                 submitBtn.disabled = false;
                 btnText.style.display = 'inline';
@@ -164,18 +183,219 @@
             }
         });
     })();
-
-    function togglePasswordVisibility(inputId, iconId) {
+    
+    // -------------------------
+    // Password toggle (GLOBAL)
+    // -------------------------
+    window.togglePassword = function (inputId, button) {
         const input = document.getElementById(inputId);
-        const icon = document.getElementById(iconId);
-
+        const eyeOpen = button.querySelector('.eye-open');
+        const eyeClosed = button.querySelector('.eye-closed');
+    
+        if (!input || !eyeOpen || !eyeClosed) return;
+    
         if (input.type === 'password') {
             input.type = 'text';
-            icon.textContent = '🙈';
+            eyeOpen.style.display = 'none';
+            eyeClosed.style.display = 'block';
         } else {
             input.type = 'password';
-            icon.textContent = '👁️';
+            eyeOpen.style.display = 'block';
+            eyeClosed.style.display = 'none';
         }
-    }
+    };
 </script>
+<style>
+    :root {
+    --primary-color: {{.PrimaryColor}};
+    --text-color: #1F2937;
+    --text-color-secondary: #6B7280;
+    --border-color: #D1D5DB;
+}
+
+/* =========================
+   FORM FIELDS
+========================= */
+.field {
+    margin-bottom: 1rem;
+}
+
+.field label {
+    display: block;
+    margin-bottom: 0.25rem;
+    color: var(--text-color);
+    font-size: 0.9rem;
+}
+
+.field input {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    box-sizing: border-box;
+    font-size: 0.9rem;
+}
+
+.field input::placeholder {
+    color: var(--text-color-secondary);
+}
+
+.field input:focus {
+    border-color: var(--primary-color);
+    outline: none;
+}
+
+.field input:focus::placeholder {
+    color: transparent;
+}
+
+/* =========================
+   VALIDATION
+========================= */
+.p-error {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: #dc2626;
+}
+
+.p-invalid {
+    border-color: #dc2626 !important;
+}
+
+/* =========================
+   SUBMIT BUTTON
+========================= */
+.btn.submit-button {
+    width: 100%;
+    background-color: var(--primary-color);
+    border: none;
+    color: #fff;
+    padding: 0.6rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.btn.submit-button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+/* =========================
+   PASSWORD TOGGLE
+========================= */
+.password-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.password-wrapper input {
+    padding-right: 2.5rem;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-color-secondary);
+    transition: color 0.2s;
+}
+
+.password-toggle:hover {
+    color: var(--primary-color);
+}
+
+.password-toggle svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* =========================
+   LINKS
+========================= */
+.login-link,
+.register-link,
+.forgot-password-link {
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+.login-link a,
+.register-link a,
+.forgot-password-link a {
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
+.login-link a:hover,
+.register-link a:hover,
+.forgot-password-link a:hover {
+    text-decoration: underline;
+}
+
+/* =========================
+   SUCCESS VIEW (REGISTER)
+========================= */
+.success-view {
+    text-align: center;
+    padding: 2rem 0;
+}
+
+.success-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+
+.success-icon {
+    font-size: 4rem;
+    width: 100px;
+    height: 100px;
+    line-height: 100px;
+    text-align: center;
+    border-radius: 50%;
+    background: linear-gradient(
+        135deg,
+        {{.PrimaryColor}}22,
+        {{.PrimaryColor}}44
+    );
+}
+
+.success-content h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.success-content p {
+    margin: 0;
+    color: var(--text-color-secondary);
+}
+
+.email-display {
+    padding: 0.6rem 1.2rem;
+    border-radius: 8px;
+    font-weight: 600;
+    color: var(--primary-color);
+    background: {{.PrimaryColor}}22;
+}
+
+.action-button {
+    margin-top: 1rem;
+    min-width: 200px;
+}
+
+</style>
 {{end}}

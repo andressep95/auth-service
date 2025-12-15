@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 
@@ -87,7 +86,6 @@ func (h *AuthPageHandler) ShowRegister(c *fiber.Ctx) error {
 		"PrimaryColor": app.PrimaryColor,
 		"Subtitle":     "Regístrate gratis",
 	}
-	fmt.Printf("PrimaryColor %s\n", app.PrimaryColor)
 
 	if app.LogoURL != nil {
 		data["Logo"] = *app.LogoURL
