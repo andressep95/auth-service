@@ -323,6 +323,8 @@
             {{template "register-content" .}}
         {{else if eq .Content "register-invitation-content"}}
             {{template "register-invitation-content" .}}
+        {{else if eq .Content "forgot-password-content"}}
+            {{template "forgot-password-content" .}}
         {{else if eq .Content "reset-password-content"}}
             {{template "reset-password-content" .}}
         {{end}}

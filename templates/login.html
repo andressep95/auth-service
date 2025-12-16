@@ -45,14 +45,14 @@
         <small class="p-error" id="passwordError" style="display: none;"></small>
     </div>
 
-    <div class="forgot-password-link">
-        <a href="/auth/forgot-password?app_id={{.AppID}}">¿Olvidaste tu contraseña?</a>
-    </div>
-
     <button type="submit" class="btn submit-button" id="submitBtn">
         <span id="btnText">Iniciar Sesión</span>
         <div class="btn-spinner" id="btnSpinner" style="display: none;"></div>
     </button>
+
+    <div class="forgot-password-link">
+        <a href="/auth/forgot-password?app_id={{.AppID}}">¿Olvidaste tu contraseña?</a>
+    </div>
 
     <div class="register-link">
         <span>¿No tienes cuenta? </span>
@@ -275,6 +275,8 @@
     border-radius: 4px;
     cursor: pointer;
     font-size: 0.9rem;
+    margin-top: 2rem;
+    margin-bottom: 1rem;
 }
 
 .btn.submit-button:disabled {
