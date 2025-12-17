@@ -1,57 +1,42 @@
 {{define "register-content"}}
-<div id="serverError" class="alert alert-error" style="display: none;"></div>
 
-<!-- Formulario de Registro -->
+<div id="serverError" class="alert alert-error" style="display:none;"></div>
+
+<!-- ===================== -->
+<!-- Register Form -->
+<!-- ===================== -->
 <div id="registerFormWrapper">
-<form id="registerForm" method="POST" action="/api/v1/auth/register">
+<form id="registerForm" novalidate>
+
     <input type="hidden" name="app_id" value="{{.AppID}}">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
 
     <div class="field">
         <label for="first_name">Nombre</label>
-        <input
-            type="text"
-            id="first_name"
-            name="first_name"
-            placeholder="Ingresa tu nombre"
-            autocomplete="given-name"
-        >
-        <small class="p-error" id="firstNameError" style="display: none;"></small>
+        <input id="first_name" name="first_name" type="text"
+               autocomplete="given-name" placeholder="Ingresa tu nombre">
+        <small class="p-error" id="firstNameError"></small>
     </div>
 
     <div class="field">
         <label for="last_name">Apellido</label>
-        <input
-            type="text"
-            id="last_name"
-            name="last_name"
-            placeholder="Ingresa tu apellido"
-            autocomplete="family-name"
-        >
-        <small class="p-error" id="lastNameError" style="display: none;"></small>
+        <input id="last_name" name="last_name" type="text"
+               autocomplete="family-name" placeholder="Ingresa tu apellido">
+        <small class="p-error" id="lastNameError"></small>
     </div>
 
     <div class="field">
         <label for="email">Email</label>
-        <input
-            type="email"
-            id="email"
-            name="email"
-            placeholder="usuario@ejemplo.com"
-            autocomplete="email"
-        >
-        <small class="p-error" id="emailError" style="display: none;"></small>
+        <input id="email" name="email" type="email"
+               autocomplete="email" placeholder="usuario@ejemplo.com">
+        <small class="p-error" id="emailError"></small>
     </div>
 
     <div class="field">
         <label for="password">Contraseña</label>
         <div class="password-wrapper">
-            <input
-                type="password"
-                id="password"
-                name="password"
-                placeholder="Ingresa tu contraseña"
-                autocomplete="new-password"
-            >
+            <input id="password" name="password" type="password"
+                   autocomplete="new-password" placeholder="Ingresa tu contraseña">
             <button type="button" class="password-toggle" onclick="togglePassword('password', this)">
                 <svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
@@ -63,19 +48,14 @@
                 </svg>
             </button>
         </div>
-        <small class="p-error" id="passwordError" style="display: none;"></small>
+        <small class="p-error" id="passwordError"></small>
     </div>
 
     <div class="field">
         <label for="password_confirm">Confirmar Contraseña</label>
         <div class="password-wrapper">
-            <input
-                type="password"
-                id="password_confirm"
-                name="password_confirm"
-                placeholder="Confirma tu contraseña"
-                autocomplete="new-password"
-            >
+            <input id="password_confirm" type="password"
+                   autocomplete="new-password" placeholder="Confirma tu contraseña">
             <button type="button" class="password-toggle" onclick="togglePassword('password_confirm', this)">
                 <svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
@@ -86,397 +66,103 @@
                     <line x1="1" y1="1" x2="23" y2="23"></line>
                 </svg>
             </button>
-        </div>   
-        <small class="p-error" id="confirmPasswordError" style="display: none;"></small>
+        </div>
+        <small class="p-error" id="confirmPasswordError"></small>
     </div>
 
     <button type="submit" class="btn submit-button" id="submitBtn">
         <span id="btnText">Registrarse</span>
-        <div class="btn-spinner" id="btnSpinner" style="display: none;"></div>
+        <div class="btn-spinner" id="btnSpinner" style="display:none;"></div>
     </button>
 
     <div class="login-link">
-        <span>¿Ya tienes cuenta? </span>
-        <a href="/auth/login?app_id={{.AppID}}" class="link-button">Inicia sesión</a>
+        <span>¿Ya tienes cuenta?</span>
+        <a href="/auth/login?app_id={{.AppID}}">Inicia sesión</a>
     </div>
+
 </form>
 </div>
 
-<!-- Vista de Éxito -->
-<div id="successView" class="success-view" style="display: none;">
-    <div class="success-content">
-        <div class="success-icon-wrapper">
-            <div class="success-icon">✉️</div>
-        </div>
-        <h2>¡Registro exitoso!</h2>
-        <p>Hemos enviado un enlace de verificación a tu correo electrónico.</p>
-        <p class="email-display" id="successEmail"></p>
-        <p class="instructions">Por favor revisa tu bandeja de entrada y haz clic en el enlace para activar tu cuenta.</p>
-
-        <button type="button" class="btn action-button" onclick="goToLogin()">
-            Ir al Login
-        </button>
-    </div>
+<!-- ===================== -->
+<!-- Success View -->
+<!-- ===================== -->
+<div id="successView" class="success-view" style="display:none;">
+    <h2>Registro exitoso</h2>
+    <p>Te enviamos un email de verificación</p>
+    <p id="successEmail"></p>
+    <button onclick="goToLogin()">Ir al login</button>
 </div>
 
 <script>
-    (function () {
-        // -------------------------
-        // State
-        // -------------------------
-        let hasSubmitted = false;
-    
-        // -------------------------
-        // Elements
-        // -------------------------
-        const form = document.getElementById('registerForm');
-    
-        const firstNameInput = document.getElementById('first_name');
-        const lastNameInput = document.getElementById('last_name');
-        const emailInput = document.getElementById('email');
-        const passwordInput = document.getElementById('password');
-        const confirmPasswordInput = document.getElementById('password_confirm');
-    
-        const firstNameError = document.getElementById('firstNameError');
-        const lastNameError = document.getElementById('lastNameError');
-        const emailError = document.getElementById('emailError');
-        const passwordError = document.getElementById('passwordError');
-        const confirmPasswordError = document.getElementById('confirmPasswordError');
-        const serverError = document.getElementById('serverError');
-    
-        const submitBtn = document.getElementById('submitBtn');
-        const btnText = document.getElementById('btnText');
-        const btnSpinner = document.getElementById('btnSpinner');
-    
-        // -------------------------
-        // Helpers
-        // -------------------------
-        function showError(el, message) {
-            el.textContent = message;
-            el.style.display = 'block';
-        }
-    
-        function hideError(el) {
-            el.textContent = '';
-            el.style.display = 'none';
-        }
-    
-        function setInvalid(input, errorEl, message) {
-            showError(errorEl, message);
-            input.classList.add('p-invalid');
-        }
-    
-        function setValid(input, errorEl) {
-            hideError(errorEl);
-            input.classList.remove('p-invalid');
-        }
-    
-        window.togglePassword = function (inputId, button) {
-            const input = document.getElementById(inputId);
-            const eyeOpen = button.querySelector('.eye-open');
-            const eyeClosed = button.querySelector('.eye-closed');
+(function () {
 
-            if (!input || !eyeOpen || !eyeClosed) return;
+    const form = document.getElementById('registerForm');
+    const serverError = document.getElementById('serverError');
 
-            if (input.type === 'password') {
-                input.type = 'text';
-                eyeOpen.style.display = 'none';
-                eyeClosed.style.display = 'block';
-            } else {
-                input.type = 'password';
-                eyeOpen.style.display = 'block';
-                eyeClosed.style.display = 'none';
-            }
-        };
+    function togglePassword(id, btn) {
+        const input = document.getElementById(id);
+        const eyeOpen = btn.querySelector('.eye-open');
+        const eyeClosed = btn.querySelector('.eye-closed');
 
+        const isPassword = input.type === 'password';
+        input.type = isPassword ? 'text' : 'password';
 
-        // -------------------------
-        // Validators
-        // -------------------------
-        function validateFirstName() {
-            if (!firstNameInput.value.trim()) {
-                setInvalid(firstNameInput, firstNameError, 'El nombre es requerido');
-                return false;
-            }
-            setValid(firstNameInput, firstNameError);
-            return true;
+        eyeOpen.style.display = isPassword ? 'none' : 'block';
+        eyeClosed.style.display = isPassword ? 'block' : 'none';
+    }
+    window.togglePassword = togglePassword;
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        serverError.style.display = 'none';
+
+        const formData = new FormData(form);
+        const data = Object.fromEntries(formData.entries());
+
+        if (data.password !== document.getElementById('password_confirm').value) {
+            serverError.textContent = 'Las contraseñas no coinciden';
+            serverError.style.display = 'block';
+            return;
         }
-    
-        function validateLastName() {
-            if (!lastNameInput.value.trim()) {
-                setInvalid(lastNameInput, lastNameError, 'El apellido es requerido');
-                return false;
-            }
-            setValid(lastNameInput, lastNameError);
-            return true;
-        }
-    
-        function validateEmail() {
-            const value = emailInput.value.trim();
-            if (!value) {
-                setInvalid(emailInput, emailError, 'El email es requerido');
-                return false;
-            }
-            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-                setInvalid(emailInput, emailError, 'El email no es válido');
-                return false;
-            }
-            setValid(emailInput, emailError);
-            return true;
-        }
-    
-        function validatePassword() {
-            const value = passwordInput.value;
-            if (!value) {
-                setInvalid(passwordInput, passwordError, 'La contraseña es requerida');
-                return false;
-            }
-            if (value.length < 8) {
-                setInvalid(passwordInput, passwordError, 'La contraseña debe tener al menos 8 caracteres');
-                return false;
-            }
-            setValid(passwordInput, passwordError);
-            return true;
-        }
-    
-        function validateConfirmPassword() {
-            const value = confirmPasswordInput.value;
-            if (!value) {
-                setInvalid(confirmPasswordInput, confirmPasswordError, 'Confirma tu contraseña');
-                return false;
-            }
-            if (value !== passwordInput.value) {
-                setInvalid(confirmPasswordInput, confirmPasswordError, 'Las contraseñas no coinciden');
-                return false;
-            }
-            setValid(confirmPasswordInput, confirmPasswordError);
-            return true;
-        }
-    
-        function validateFieldById(id) {
-            switch (id) {
-                case 'first_name': return validateFirstName();
-                case 'last_name': return validateLastName();
-                case 'email': return validateEmail();
-                case 'password': return validatePassword();
-                case 'password_confirm': return validateConfirmPassword();
-            }
-        }
-    
-        function validateForm() {
-            return (
-                validateFirstName() &&
-                validateLastName() &&
-                validateEmail() &&
-                validatePassword() &&
-                validateConfirmPassword()
-            );
-        }
-    
-        // -------------------------
-        // Live validation (AFTER submit)
-        // -------------------------
-        [
-            firstNameInput,
-            lastNameInput,
-            emailInput,
-            passwordInput,
-            confirmPasswordInput,
-        ].forEach(input => {
-            input.addEventListener('input', () => {
-                if (!hasSubmitted) return;
-                validateFieldById(input.id);
+
+        const csrfToken = data.csrf_token;
+        delete data.csrf_token;
+        delete data.password_confirm;
+
+        try {
+            const res = await fetch('/api/v1/auth/register', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': csrfToken
+                },
+                body: JSON.stringify(data)
             });
-        });
-    
-        // -------------------------
-        // Submit
-        // -------------------------
-        form.addEventListener('submit', async function (e) {
-            e.preventDefault();
-            hasSubmitted = true;
-    
-            if (!validateForm()) return;
-    
-            submitBtn.disabled = true;
-            btnText.style.display = 'none';
-            btnSpinner.style.display = 'inline-block';
-            hideError(serverError);
-    
-            const formData = new FormData(form);
-            const data = Object.fromEntries(formData.entries());
-            delete data.password_confirm;
-    
-            try {
-                const response = await fetch('/api/v1/auth/register', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data),
-                });
-    
-                const result = await response.json();
-    
-                if (response.ok) {
-                    showSuccessView(emailInput.value);
-                } else {
-                    showError(serverError, result.error || 'Error al registrarse');
-                }
-            } catch {
-                showError(serverError, 'Error de conexión. Intenta nuevamente.');
-            } finally {
-                submitBtn.disabled = false;
-                btnText.style.display = 'inline';
-                btnSpinner.style.display = 'none';
+
+            const json = await res.json();
+
+            if (!res.ok) {
+                serverError.textContent = json.error || 'Error de registro';
+                serverError.style.display = 'block';
+                return;
             }
-        });
-    })();
+
+            document.getElementById('registerFormWrapper').style.display = 'none';
+            document.getElementById('successView').style.display = 'block';
+            document.getElementById('successEmail').textContent = data.email;
+
+        } catch {
+            serverError.textContent = 'Error de conexión';
+            serverError.style.display = 'block';
+        }
+    });
+})();
+
+function goToLogin() {
+    window.location.href = "/auth/login?app_id={{.AppID}}";
+}
 </script>
-    
-
-<style>
-    :root {
-        --primary-color: {{.PrimaryColor}};
-        --text-color: #1F2937;
-        --text-color-secondary: #6B7280;
-        --border-color: #D1D5DB;
-    }
-
-    /* ===== Campos del formulario ===== */
-    .field label {
-        display: block;
-        margin-bottom: 0;
-        color: var(--text-color);
-    }
-
-    .field input {
-        width: 100%;
-        padding: 0.5rem;
-        border: 1px solid var(--border-color);
-        border-radius: 6px;
-        box-sizing: border-box;
-    }
-
-    .field input::placeholder {
-        color: var(--text-color-secondary);
-    }
-
-    .field input:focus {
-        border-color: var(--primary-color);
-        outline: none;
-    }
-
-    .field input:focus::placeholder {
-        color: transparent;
-    }
-
-    /* ===== Botón submit ===== */
-    .btn.submit-button {
-        background-color: var(--primary-color);
-        border: none;
-        color: white;
-        padding: 0.5rem 1rem;
-        margin-top: 2rem;
-        margin-bottom: 1rem;
-    }
-
-    /* ===== Password toggle ===== */
-    .password-wrapper {
-        position: relative;
-        width: 100%;
-    }
-
-    .password-wrapper input {
-        padding-right: 2.5rem;
-    }
-
-    .password-toggle {
-        position: absolute;
-        right: 0.5rem;
-        top: 50%;
-        transform: translateY(-50%);
-        background: none;
-        border: none;
-        cursor: pointer;
-        padding: 0.25rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: var(--text-color-secondary);
-        transition: color 0.2s;
-    }
-
-    .password-toggle:hover {
-        color: var(--primary-color);
-    }
-
-    .password-toggle svg {
-        width: 20px;
-        height: 20px;
-    }
-
-    /* ===== Success view ===== */
-    .success-view {
-        text-align: center;
-        padding: 2rem 0;
-    }
-
-    .success-content {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 1rem;
-    }
-
-    .success-icon-wrapper {
-        margin-bottom: 1rem;
-    }
-
-    .success-icon {
-        font-size: 4rem;
-        width: 100px;
-        height: 100px;
-        line-height: 100px;
-        text-align: center;
-        padding: 1.5rem;
-        border-radius: 50%;
-        background: linear-gradient(
-            135deg,
-            {{.PrimaryColor}}22,
-            {{.PrimaryColor}}44
-        );
-    }
-
-    .success-content h2 {
-        margin: 0;
-        font-size: 24px;
-        font-weight: 600;
-        color: #1f2937;
-    }
-
-    .success-content p {
-        margin: 0;
-        color: #6b7280;
-        line-height: 1.5;
-    }
-
-    .email-display {
-        margin: 0.5rem 0 !important;
-        padding: 0.75rem 1.5rem;
-        border-radius: 8px;
-        font-weight: 600;
-        color: var(--primary-color);
-        background: {{.PrimaryColor}}22;
-    }
-
-    .instructions {
-        font-size: 0.9rem;
-        margin-bottom: 1rem !important;
-    }
-
-    .action-button {
-        margin-top: 1rem;
-        min-width: 200px;
-    }
-</style>
 
 {{end}}

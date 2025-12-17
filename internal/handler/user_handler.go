@@ -2,6 +2,8 @@ package handler
 
 import (
 	"log"
+	"crypto/subtle" // <--- Add this
+    "strings"       // <--- Add this
 
 	"github.com/andressep95/auth-service/internal/domain"
 	"github.com/andressep95/auth-service/internal/service"
@@ -26,11 +28,33 @@ func NewUserHandler(userService *service.UserService, validator *validator.Valid
 // POST /api/v1/auth/register
 func (h *UserHandler) Register(c *fiber.Ctx) error {
 	// Log raw body for debugging
-	body := c.Body()
-	log.Printf("[USER_HANDLER] Raw body (len=%d): %s", len(body), string(body))
+
+	headerToken := c.Get("X-CSRF-Token")
+	cookieToken := c.Cookies("csrf_token")
+
+	if headerToken == "" || cookieToken == "" || subtle.ConstantTimeCompare([]byte(headerToken), []byte(cookieToken)) != 1 {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+			"error": "Invalid CSRF token",
+		})
+	}
+
+	if !strings.HasPrefix(c.Get("Content-Type"), "application/json") {
+		return c.Status(fiber.StatusUnsupportedMediaType).JSON(fiber.Map{
+			"error": "Content-Type must be application/json",
+		})
+	}
+
+	_ = c.Body()
 	log.Printf("[USER_HANDLER] Content-Type: %s", c.Get("Content-Type"))
 
 	var req service.RegisterRequest
+
+	if !strings.HasPrefix(c.Get("Content-Type"), "application/json") {
+		return c.Status(fiber.StatusUnsupportedMediaType).JSON(fiber.Map{
+			"error": "Content-Type must be application/json",
+		})
+	}
+
 	if err := c.BodyParser(&req); err != nil {
 		log.Printf("[USER_HANDLER] BodyParser error: %v", err)
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{

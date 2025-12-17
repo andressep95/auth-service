@@ -160,6 +160,13 @@ func main() {
 	app.Use(middleware.RecoveryMiddleware())
 	app.Use(middleware.LoggerMiddleware())
 	app.Use(middleware.CORSMiddleware(cfg))
+	
+	wd, _ := os.Getwd()
+	log.Printf("Directorio de trabajo actual: %s", wd)
+
+	// Si el log dice que estás en .../auth-service/cmd
+	// entonces la ruta debería ser "../public"
+	app.Static("/static", "./public")
 
 	// Setup authorization middlewares
 	authMiddleware := middleware.AuthMiddleware(tokenService, tokenBlacklist)

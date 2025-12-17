@@ -3,6 +3,7 @@ package handler
 import (
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/andressep95/auth-service/internal/service"
 	"github.com/gofiber/fiber/v2"
@@ -79,6 +80,16 @@ func (h *AuthPageHandler) ShowRegister(c *fiber.Ctx) error {
 		return c.Status(http.StatusNotFound).SendString("App not found")
 	}
 
+	csrfToken := uuid.New().String() // Simple CSRF token generation
+	c.Cookie(&fiber.Cookie{
+		Name:	 "csrf_token",
+		Value: csrfToken,
+		HTTPOnly: true,
+		Secure:   true,
+		SameSite: fiber.CookieSameSiteLaxMode,
+		Expires:  time.Now().Add(10 * time.Minute),
+	})
+
 	data := fiber.Map{
 		"Title":        "Crear cuenta",
 		"AppName":      app.Name,
@@ -93,6 +104,7 @@ func (h *AuthPageHandler) ShowRegister(c *fiber.Ctx) error {
 
 	log.Printf("[AUTH_PAGE] Rendering register template with data: Title=%s, AppID=%s", data["Title"], data["AppID"])
 	// Merge content block name into data
+	data["CSRFToken"] = csrfToken
 	data["Content"] = "register-content"
 	return c.Render("register", data, "layout")
 }

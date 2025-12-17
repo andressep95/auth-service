@@ -33,9 +33,12 @@ COPY migrations ./migrations
 # Copy templates
 COPY templates ./templates
 
+# Copy public assets
+COPY --from=builder /app/public ./public
+
 # Copy entrypoint script
 COPY docker-entrypoint.sh .
-RUN chmod +x docker-entrypoint.sh
+RUN sed -i 's/\r$//' docker-entrypoint.sh && chmod +x docker-entrypoint.sh
 
 # Create keys directory
 RUN mkdir -p /app/keys

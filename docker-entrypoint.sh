@@ -9,8 +9,8 @@ echo ""
 # ============================================
 echo "🔑 Checking RSA keys..."
 
-PRIVATE_KEY="/app/keys/private.pem"
-PUBLIC_KEY="/app/keys/public.pem"
+PRIVATE_KEY="/keys/private.pem"
+PUBLIC_KEY="/keys/public.pem"
 
 if [ ! -f "$PRIVATE_KEY" ] || [ ! -f "$PUBLIC_KEY" ]; then
     echo "🔐 Generating RSA keys (4096 bits)..."
