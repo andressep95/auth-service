@@ -36,7 +36,7 @@ coverage: test
 	@go tool cover -html=coverage.out
 
 ## docker-up: Iniciar todos los servicios con Docker Compose
-docker-up:
+up:
 	@echo "🐳 Iniciando servicios..."
 	@docker-compose up -d
 	@echo "✓ Servicios iniciados"
@@ -198,8 +198,18 @@ stop:
 	@$(MAKE) docker-down --no-print-directory
 	@echo "✓ Todos los servicios detenidos"
 
-## restart: Reiniciar todo el sistema
-restart: stop quickstart
+## refresh: Rebuild Dockerfile + restart limpio de todos los servicios
+refresh:
+	@echo "🔄 Refrescando entorno completo..."
+	@echo "➡️  Deteniendo contenedores..."
+	@docker-compose down
+	@echo "➡️  Reconstruyendo imagen..."
+	@docker-compose build auth-service
+	@echo "➡️  Levantando servicios..."
+	@docker-compose up -d
+	@echo "✓ Entorno refrescado correctamente"
+
+
 
 ## logs: Ver logs de la aplicación
 logs:
