@@ -38,12 +38,6 @@ func (h *UserHandler) Register(c *fiber.Ctx) error {
 		})
 	}
 
-	if !strings.HasPrefix(c.Get("Content-Type"), "application/json") {
-		return c.Status(fiber.StatusUnsupportedMediaType).JSON(fiber.Map{
-			"error": "Content-Type must be application/json",
-		})
-	}
-
 	_ = c.Body()
 	log.Printf("[USER_HANDLER] Content-Type: %s", c.Get("Content-Type"))
 

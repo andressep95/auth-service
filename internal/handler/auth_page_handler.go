@@ -2,6 +2,7 @@ package handler
 
 import (
 	"log"
+	"os"
 	"net/http"
 	"time"
 
@@ -80,15 +81,24 @@ func (h *AuthPageHandler) ShowRegister(c *fiber.Ctx) error {
 		return c.Status(http.StatusNotFound).SendString("App not found")
 	}
 
-	csrfToken := uuid.New().String() // Simple CSRF token generation
-	c.Cookie(&fiber.Cookie{
-		Name:	 "csrf_token",
-		Value: csrfToken,
-		HTTPOnly: true,
-		Secure:   true,
-		SameSite: fiber.CookieSameSiteLaxMode,
-		Expires:  time.Now().Add(10 * time.Minute),
-	})
+	csrfToken := c.Cookies("csrf_token")
+
+	if csrfToken == "" {
+		csrfToken = uuid.New().String()
+
+		isProd := os.Getenv("ENVIRONMENT") == "production"
+
+		c.Cookie(&fiber.Cookie{
+			Name:     "csrf_token",
+			Value:    csrfToken,
+			HTTPOnly: true,
+			Secure:   isProd,
+			SameSite: fiber.CookieSameSiteLaxMode,
+			Path:     "/",
+			Expires:  time.Now().Add(10 * time.Minute),
+		})
+	}
+
 
 	data := fiber.Map{
 		"Title":        "Crear cuenta",

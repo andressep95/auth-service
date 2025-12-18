@@ -6,81 +6,81 @@
 <!-- Register Form -->
 <!-- ===================== -->
 <div id="registerFormWrapper">
-<form id="registerForm" novalidate>
+    <form id="registerForm" autocomplete="off">
 
-    <input type="hidden" name="app_id" value="{{.AppID}}">
-    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+        <input type="hidden" name="app_id" value="{{.AppID}}">
+        <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
 
-    <div class="field">
-        <label for="first_name">Nombre</label>
-        <input id="first_name" name="first_name" type="text"
-               autocomplete="given-name" placeholder="Ingresa tu nombre">
-        <small class="p-error" id="firstNameError" style="display: none;"></small>
-    </div>
-
-    <div class="field">
-        <label for="last_name">Apellido</label>
-        <input id="last_name" name="last_name" type="text"
-               autocomplete="family-name" placeholder="Ingresa tu apellido">
-        <small class="p-error" id="lastNameError" style="display: none;"></small>
-    </div>
-
-    <div class="field">
-        <label for="email">Email</label>
-        <input id="email" name="email" type="email"
-               autocomplete="email" placeholder="usuario@ejemplo.com">
-        <small class="p-error" id="emailError" style="display: none;"></small>
-    </div>
-
-    <div class="field">
-        <label for="password">Contraseña</label>
-        <div class="password-wrapper">
-            <input id="password" name="password" type="password"
-                   autocomplete="new-password" placeholder="Ingresa tu contraseña">
-            <button type="button" class="password-toggle" onclick="togglePassword('password', this)">
-                <svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                    <circle cx="12" cy="12" r="3"></circle>
-                </svg>
-                <svg class="eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none">
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-                    <line x1="1" y1="1" x2="23" y2="23"></line>
-                </svg>
-            </button>
+        <div class="field">
+            <label for="first_name">Nombre</label>
+            <input id="first_name" name="first_name" type="text"
+                autocomplete="given-name" placeholder="Ingresa tu nombre">
+            <small class="p-error" id="firstNameError" style="display: none;"></small>
         </div>
-        <small class="p-error" id="passwordError" style="display: none;"></small>
-    </div>
 
-    <div class="field">
-        <label for="password_confirm">Confirmar Contraseña</label>
-        <div class="password-wrapper">
-            <input id="password_confirm" type="password"
-                   autocomplete="new-password" placeholder="Confirma tu contraseña">
-            <button type="button" class="password-toggle" onclick="togglePassword('password_confirm', this)">
-                <svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                    <circle cx="12" cy="12" r="3"></circle>
-                </svg>
-                <svg class="eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none">
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-                    <line x1="1" y1="1" x2="23" y2="23"></line>
-                </svg>
-            </button>
+        <div class="field">
+            <label for="last_name">Apellido</label>
+            <input id="last_name" name="last_name" type="text"
+                autocomplete="family-name" placeholder="Ingresa tu apellido">
+            <small class="p-error" id="lastNameError" style="display: none;"></small>
         </div>
-        <small class="p-error" id="confirmPasswordError" style="display: none;"></small>
-    </div>
 
-    <button type="submit" class="btn submit-button" id="submitBtn">
-        <span id="btnText">Registrarse</span>
-        <div class="btn-spinner" id="btnSpinner" style="display:none;"></div>
-    </button>
+        <div class="field">
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email"
+                autocomplete="email" placeholder="usuario@ejemplo.com">
+            <small class="p-error" id="emailError" style="display: none;"></small>
+        </div>
 
-    <div class="form-footer-link login-link">
-        <span>¿Ya tienes cuenta?</span>
-        <a href="/auth/login?app_id={{.AppID}}">Inicia sesión</a>
-    </div>
+        <div class="field">
+            <label for="password">Contraseña</label>
+            <div class="password-wrapper">
+                <input id="password" name="password" type="password"
+                    autocomplete="new-password" placeholder="Ingresa tu contraseña">
+                <button type="button" class="password-toggle" onclick="togglePassword('password', this)">
+                    <svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                    <svg class="eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none">
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                        <line x1="1" y1="1" x2="23" y2="23"></line>
+                    </svg>
+                </button>
+            </div>
+            <small class="p-error" id="passwordError" style="display: none;"></small>
+        </div>
 
-</form>
+        <div class="field">
+            <label for="password_confirm">Confirmar Contraseña</label>
+            <div class="password-wrapper">
+                <input id="password_confirm" type="password"
+                    autocomplete="new-password" placeholder="Confirma tu contraseña">
+                <button type="button" class="password-toggle" onclick="togglePassword('password_confirm', this)">
+                    <svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                    <svg class="eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none">
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                        <line x1="1" y1="1" x2="23" y2="23"></line>
+                    </svg>
+                </button>
+            </div>
+            <small class="p-error" id="confirmPasswordError" style="display: none;"></small>
+        </div>
+
+        <button type="button" class="btn submit-button" id="submitBtn">
+            <span id="btnText">Registrarse</span>
+            <div class="btn-spinner" id="btnSpinner" style="display:none;"></div>
+        </button>
+
+        <div class="form-footer-link login-link">
+            <span>¿Ya tienes cuenta?</span>
+            <a href="/auth/login?app_id={{.AppID}}">Inicia sesión</a>
+        </div>
+
+    </form>
 </div>
 
 <!-- ===================== -->
@@ -124,8 +124,7 @@
     }
     window.togglePassword = togglePassword;
 
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
+    document.getElementById('submitBtn').addEventListener('click', async () => {
 
         serverError.style.display = 'none';
 
