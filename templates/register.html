@@ -87,10 +87,22 @@
 <!-- Success View -->
 <!-- ===================== -->
 <div id="successView" class="success-view" style="display:none;">
-    <h2>Registro exitoso</h2>
-    <p>Te enviamos un email de verificación</p>
-    <p id="successEmail"></p>
-    <button onclick="goToLogin()">Ir al login</button>
+    <div class="success-icon-wrapper">
+        <svg class="success-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+        </svg>
+    </div>
+    
+    <h2>¡Registro exitoso!</h2>
+    <p>Hemos enviado un enlace de verificación a tu correo:</p>
+    <strong id="successEmail" class="highlight-email"></strong>
+    
+    <p class="success-note">Revisa tu bandeja de entrada (y la carpeta de spam) para activar tu cuenta.</p>
+    
+    <button class="btn" onclick="goToLogin()">
+        Ir al inicio de sesión
+    </button>
 </div>
 
 <script>

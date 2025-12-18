@@ -170,19 +170,59 @@ body {
 }
 
 /* ============================= */
-/* Success View */
+/* Success View Improved */
 /* ============================= */
 
 .success-view {
     text-align: center;
+    padding: var(--space-md);
 }
 
-.success-icon {
-    font-size: 3rem;
+.success-icon-wrapper {
+    display: flex;
+    justify-content: center;
+    margin-bottom: var(--space-lg);
+}
+
+.success-svg {
+    width: 80px;
+    height: 80px;
+    color: var(--primary-color);
     background: var(--primary-light);
-    padding: var(--space-md);
+    padding: 15px;
     border-radius: 50%;
-    margin-bottom: var(--space-md);
+}
+
+.success-view h2 {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: var(--space-sm);
+    color: var(--text-main);
+}
+
+.success-view p {
+    color: var(--text-muted);
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+.highlight-email {
+    display: block;
+    margin: var(--space-sm) 0;
+    color: var(--text-main);
+    font-size: 16px;
+    word-break: break-all;
+}
+
+.success-note {
+    margin-top: var(--space-md);
+    font-size: 13px !important;
+    font-style: italic;
+}
+
+/* Ajuste del botón en la vista de éxito para que no pegue arriba */
+.success-view .btn {
+    margin-top: var(--space-xl);
 }
 
 /* ============================= */
