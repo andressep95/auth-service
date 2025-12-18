@@ -1,4 +1,23 @@
-/* Estilos Base y Normalización */
+/* ============================= */
+/* Variables Base (NO branding) */
+/* ============================= */
+
+:root {
+    --text-main: #1f2937;
+    --text-muted: #6b7280;
+
+    /* Spacing scale */
+    --space-xs: 0.5rem;
+    --space-sm: 0.75rem;
+    --space-md: 1rem;
+    --space-lg: 1.5rem;
+    --space-xl: 2rem;
+}
+
+/* ============================= */
+/* Reset & Base */
+/* ============================= */
+
 * {
     margin: 0;
     padding: 0;
@@ -13,10 +32,13 @@ body {
     align-items: center;
     justify-content: center;
     padding: 20px;
-    color: #1F2937;
+    color: var(--text-main);
 }
 
-/* Contenedor Principal */
+/* ============================= */
+/* Container */
+/* ============================= */
+
 .container {
     background: white;
     border-radius: 12px;
@@ -26,31 +48,40 @@ body {
     padding: 40px 20px;
 }
 
+/* ============================= */
 /* Header / Logo */
+/* ============================= */
+
 .logo {
     text-align: center;
-    margin-bottom: 30px;
+    margin-bottom: var(--space-lg);
 }
+
 .logo img {
     max-width: 120px;
     height: auto;
-    margin-bottom: 15px;
+    margin-bottom: var(--space-sm);
 }
+
 .logo h1 {
     font-size: 24px;
     margin-bottom: 5px;
 }
+
 .logo p {
-    color: #718096;
+    color: var(--text-muted);
     font-size: 14px;
 }
 
-/* Formulario Estilo PrimeVue */
+/* ============================= */
+/* Form Fields */
+/* ============================= */
+
 .field {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
-    margin-bottom: 0.25rem;
+    margin-bottom: var(--space-sm);
 }
 
 .field label {
@@ -74,7 +105,10 @@ body {
     outline: none;
 }
 
-/* Botones */
+/* ============================= */
+/* Buttons */
+/* ============================= */
+
 .btn {
     width: 100%;
     padding: 14px;
@@ -90,7 +124,7 @@ body {
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    margin-top: 2rem;
+    margin-top: var(--space-xl);
 }
 
 .btn:hover {
@@ -98,7 +132,10 @@ body {
     transform: translateY(-1px);
 }
 
+/* ============================= */
 /* Password Toggle */
+/* ============================= */
+
 .password-wrapper {
     position: relative;
 }
@@ -111,27 +148,123 @@ body {
     background: none;
     border: none;
     cursor: pointer;
-    color: #718096;
+    color: var(--text-muted);
 }
 
-/* Alertas */
+/* ============================= */
+/* Alerts */
+/* ============================= */
+
 .alert {
     padding: 12px 16px;
     border-radius: 8px;
-    margin-bottom: 20px;
+    margin-bottom: var(--space-md);
     font-size: 14px;
     border: 1px solid transparent;
 }
-.alert-error { background: #fee; color: #c53030; border-color: #fc8181; }
 
+.alert-error {
+    background: #fee;
+    color: #c53030;
+    border-color: #fc8181;
+}
+
+/* ============================= */
 /* Success View */
+/* ============================= */
+
 .success-view {
     text-align: center;
 }
+
 .success-icon {
     font-size: 3rem;
     background: var(--primary-light);
-    padding: 1rem;
+    padding: var(--space-md);
     border-radius: 50%;
-    margin-bottom: 1rem;
+    margin-bottom: var(--space-md);
+}
+
+/* ============================= */
+/* Form Footer Links (BASE) */
+/* ============================= */
+
+.form-footer-link,
+.login-link,
+.register-link,
+.forgot-password-link,
+.back-to-login {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    margin-top: var(--space-lg);
+    text-align: center;
+}
+
+.form-footer-link a,
+.login-link a,
+.register-link a,
+.back-to-login a {
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-decoration: none;
+    color: var(--primary-color);
+}
+
+.forgot-password-link a {
+    color: var(--text-muted);
+}
+
+.form-footer-link a:hover,
+.login-link a:hover,
+.register-link a:hover,
+.back-to-login a:hover {
+    text-decoration: underline;
+}
+
+/* ============================= */
+/* Forgot Password View */
+/* ============================= */
+
+.forgot-content {
+    text-align: center;
+    padding: var(--space-md);
+}
+
+.forgot-content .forgot-icon-wrapper {
+    margin-bottom: var(--space-lg);
+}
+
+.forgot-content .forgot-icon {
+    width: 64px;
+    height: 64px;
+    color: var(--text-muted);
+}
+
+.forgot-content h2 {
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: var(--space-xs);
+}
+
+.forgot-content p {
+    color: var(--text-muted);
+    margin-bottom: var(--space-xl);
+    line-height: 1.5;
+}
+
+/* ============================= */
+/* Responsive */
+/* ============================= */
+
+@media (max-width: 480px) {
+    .form-footer-link,
+    .login-link,
+    .register-link,
+    .forgot-password-link,
+    .back-to-login {
+        flex-direction: column;
+        gap: 4px;
+    }
 }
