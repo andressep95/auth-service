@@ -197,7 +197,7 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 6px;
+    gap: 2px 6px;
     margin-top: var(--space-lg);
     text-align: center;
 }
@@ -221,6 +221,10 @@ body {
 .register-link a:hover,
 .back-to-login a:hover {
     text-decoration: underline;
+}
+
+.forgot-password-link + .form-footer-link {
+    margin-top: 4px; 
 }
 
 /* ============================= */
