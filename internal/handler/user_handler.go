@@ -14,31 +14,76 @@ import (
 
 type UserHandler struct {
 	userService *service.UserService
+	appService  *service.AppService
 	validator   *validator.Validator
 }
 
-func NewUserHandler(userService *service.UserService, validator *validator.Validator) *UserHandler {
+func NewUserHandler(userService *service.UserService, appService *service.AppService, validator *validator.Validator) *UserHandler {
 	return &UserHandler{
 		userService: userService,
+		appService:  appService,
 		validator:   validator,
 	}
 }
 
-// Register handles user registration
+// Register handles user registration with SECURE auto-detection
 // POST /api/v1/auth/register
+//
+// SECURITY: app_id is ONLY resolved from Origin header (via CORS middleware)
+// ⚠️ NO app_id accepted in form/query/body to prevent leakage attacks
 func (h *UserHandler) Register(c *fiber.Ctx) error {
-	// Log raw body for debugging
+	log.Printf("[USER_HANDLER] Register request received")
 
+	// CSRF validation
 	headerToken := c.Get("X-CSRF-Token")
 	cookieToken := c.Cookies("csrf_token")
 
 	if headerToken == "" || cookieToken == "" || subtle.ConstantTimeCompare([]byte(headerToken), []byte(cookieToken)) != 1 {
+		log.Printf("[USER_HANDLER] CSRF validation failed")
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 			"error": "Invalid CSRF token",
 		})
 	}
 
-	_ = c.Body()
+	// SECURITY: Get app_id ONLY from auto-detection
+	var appID uuid.UUID
+
+	// Try from CORS middleware first (cross-origin requests)
+	if autoAppID := c.Locals("auto_detected_app_id"); autoAppID != nil {
+		appIDStr := autoAppID.(string)
+		var parseErr error
+		appID, parseErr = uuid.Parse(appIDStr)
+		if parseErr != nil {
+			log.Printf("[USER_HANDLER] Invalid auto-detected app_id: %s", appIDStr)
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Access denied: Invalid application",
+			})
+		}
+		log.Printf("[USER_HANDLER] Using CORS auto-detected app_id: %s", appID)
+	} else {
+		// CORS didn't detect (same-origin request), try manual detection
+		origin := getOriginFromRequest(c)
+		if origin == "" {
+			log.Printf("[USER_HANDLER] Could not determine origin")
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Access denied: Could not determine origin",
+			})
+		}
+
+		log.Printf("[USER_HANDLER] Auto-detecting app from origin: %s", origin)
+
+		resolution, err := h.appService.ResolveAppFromOrigin(c.Context(), origin)
+		if err != nil {
+			log.Printf("[USER_HANDLER] Failed to resolve app from origin %s: %v", origin, err)
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Access denied: Origin not registered. Please access from registered web application.",
+			})
+		}
+
+		appID = resolution.App.ID
+		log.Printf("[USER_HANDLER] App auto-detected: %s (ID: %s)", resolution.App.Name, appID)
+	}
+
 	log.Printf("[USER_HANDLER] Content-Type: %s", c.Get("Content-Type"))
 
 	var req service.RegisterRequest
@@ -56,8 +101,20 @@ func (h *UserHandler) Register(c *fiber.Ctx) error {
 		})
 	}
 
-	log.Printf("[USER_HANDLER] Register request parsed: AppID=%s, Email=%s, FirstName=%s, LastName=%s",
-		req.AppID, req.Email, req.FirstName, req.LastName)
+	// Override req.AppID with secure auto-detected value
+	req.AppID = appID.String()
+
+	// Build verification URL from detected origin
+	origin := getOriginFromRequest(c)
+	if origin != "" {
+		req.VerificationBaseURL = origin + "/auth/verify-email"
+		req.PasswordResetBaseURL = origin + "/auth/reset-password"
+		log.Printf("[USER_HANDLER] Using dynamic URLs - Verification: %s, Reset: %s",
+			req.VerificationBaseURL, req.PasswordResetBaseURL)
+	}
+
+	log.Printf("[USER_HANDLER] Register request - Email=%s, FirstName=%s, LastName=%s, SecureAppID=%s",
+		req.Email, req.FirstName, req.LastName, req.AppID)
 
 	if err := h.validator.Validate(req); err != nil {
 		log.Printf("[USER_HANDLER] Validation error: %v", err)

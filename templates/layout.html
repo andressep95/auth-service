@@ -39,6 +39,8 @@
             {{template "forgot-password-content" .}}
         {{else if eq .Content "reset-password-content"}}
             {{template "reset-password-content" .}}
+        {{else if eq .Content "verify-email-content"}}
+            {{template "verify-email-content" .}}
         {{end}}
 
     </div>

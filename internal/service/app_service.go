@@ -81,3 +81,47 @@ func (s *AppService) GetAppByID(ctx context.Context, id string) (*domain.App, er
 	}
 	return app, nil
 }
+
+// AppResolution holds the result of resolving an app from origin
+type AppResolution struct {
+	App                *domain.App
+	SuggestedRedirectURI string
+}
+
+// ResolveAppFromOrigin automatically detects app and redirect_uri from Origin header
+// This simplifies frontend integration - they only need to point to auth service
+func (s *AppService) ResolveAppFromOrigin(ctx context.Context, origin string) (*AppResolution, error) {
+	if origin == "" {
+		return nil, errors.New("origin is required")
+	}
+
+	// Find app by web origin
+	app, err := s.appRepo.GetByWebOrigin(ctx, origin)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find app: %w", err)
+	}
+
+	if app == nil {
+		return nil, fmt.Errorf("no app registered for origin: %s", origin)
+	}
+
+	// Suggest redirect_uri: Find first redirect_uri that matches the origin
+	suggestedRedirectURI := ""
+	for _, redirectURI := range app.RedirectURIs {
+		// Check if redirect_uri starts with the origin
+		if strings.HasPrefix(redirectURI, origin) {
+			suggestedRedirectURI = redirectURI
+			break
+		}
+	}
+
+	// If no exact match, use first redirect_uri (if exists)
+	if suggestedRedirectURI == "" && len(app.RedirectURIs) > 0 {
+		suggestedRedirectURI = app.RedirectURIs[0]
+	}
+
+	return &AppResolution{
+		App:                app,
+		SuggestedRedirectURI: suggestedRedirectURI,
+	}, nil
+}

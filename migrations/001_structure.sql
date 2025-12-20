@@ -119,6 +119,22 @@ CREATE TABLE IF NOT EXISTS sessions (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- TABLE: authorization_codes (OAuth2 Authorization Code Flow)
+CREATE TABLE IF NOT EXISTS authorization_codes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code_hash VARCHAR(255) NOT NULL UNIQUE,
+    app_id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    redirect_uri TEXT NOT NULL,
+    scope VARCHAR(500),
+    state VARCHAR(500),
+    code_challenge VARCHAR(128),
+    code_challenge_method VARCHAR(10),
+    used BOOLEAN DEFAULT FALSE,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- TABLE: audit_logs
 CREATE TABLE IF NOT EXISTS audit_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -247,6 +263,12 @@ ALTER TABLE sessions ADD CONSTRAINT fk_sessions_app_id
 ALTER TABLE sessions ADD CONSTRAINT fk_sessions_tenant_id
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE;
 
+ALTER TABLE authorization_codes ADD CONSTRAINT fk_authorization_codes_app_id
+    FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE;
+
+ALTER TABLE authorization_codes ADD CONSTRAINT fk_authorization_codes_user_id
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
 ALTER TABLE audit_logs ADD CONSTRAINT fk_audit_logs_app_id
     FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE SET NULL;
 
@@ -319,6 +341,13 @@ CREATE INDEX IF NOT EXISTS idx_sessions_tenant_id ON sessions(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_user_tenant ON sessions(user_id, tenant_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
 CREATE INDEX IF NOT EXISTS idx_sessions_refresh_token_hash ON sessions(refresh_token_hash);
+
+-- Authorization codes indexes
+CREATE INDEX IF NOT EXISTS idx_authorization_codes_code_hash ON authorization_codes(code_hash);
+CREATE INDEX IF NOT EXISTS idx_authorization_codes_app_id ON authorization_codes(app_id);
+CREATE INDEX IF NOT EXISTS idx_authorization_codes_user_id ON authorization_codes(user_id);
+CREATE INDEX IF NOT EXISTS idx_authorization_codes_expires_at ON authorization_codes(expires_at);
+CREATE INDEX IF NOT EXISTS idx_authorization_codes_used ON authorization_codes(used) WHERE used = FALSE;
 
 -- Audit logs indexes
 CREATE INDEX IF NOT EXISTS idx_audit_logs_app_id ON audit_logs(app_id);

@@ -12,13 +12,43 @@
 -- SECTION 1: BASE APP
 -- ============================================================================
 
-INSERT INTO apps (id, name, client_id, client_secret_hash, description)
+INSERT INTO apps (
+    id,
+    name,
+    client_id,
+    client_secret_hash,
+    description,
+    web_origins,
+    redirect_uris,
+    logo_url,
+    primary_color
+)
 VALUES (
     '7057e69d-818b-45db-b39b-9d1c84aca142',
     'Auth Service',
     'auth-service',
     'placeholder',
-    'Default application for the auth service'
+    'Default application for the auth service',
+    -- Web origins for localhost development (auto-detection de app)
+    ARRAY[
+        'http://localhost:3000',
+        'http://localhost:5173',
+        'http://localhost:8080',
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:5173',
+        'http://127.0.0.1:8080'
+    ]::TEXT[],
+    -- Redirect URIs for OAuth2 callback (localhost development)
+    ARRAY[
+        'http://localhost:3000/callback',
+        'http://localhost:3000/auth/callback',
+        'http://localhost:5173/callback',
+        'http://localhost:5173/auth/callback',
+        'http://localhost:8080/callback',
+        'http://localhost:8080/auth/callback'
+    ]::TEXT[],
+    NULL, -- logo_url (puedes agregar una URL si tienes un logo)
+    '#05C383' -- primary_color (verde por defecto)
 ) ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================

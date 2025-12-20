@@ -7,6 +7,7 @@ import (
 func SetupRoutes(
 	app *fiber.App,
 	authHandler *AuthHandler,
+	oauthHandler *OAuthHandler,
 	userHandler *UserHandler,
 	roleHandler *RoleHandler,
 	passwordHandler *PasswordHandler,
@@ -55,6 +56,10 @@ func SetupRoutes(
 	auth.Post("/forgot-password", userHandler.ForgotPassword)
 	auth.Post("/reset-password", userHandler.ResetPassword)
 	auth.Post("/register-with-invitation", authHandler.RegisterWithInvitation)
+
+	// OAuth2 routes (public)
+	oauth := app.Group("/oauth")
+	oauth.Post("/token", oauthHandler.Token)
 
 	// User routes (protected)
 	users := api.Group("/users", authMiddleware)

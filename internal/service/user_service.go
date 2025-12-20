@@ -28,13 +28,15 @@ type UserService struct {
 }
 
 type RegisterRequest struct {
-	AppID       string `json:"app_id" form:"app_id" validate:"omitempty,uuid"`       // Optional, defaults to base app
-	TenantID    string `json:"tenant_id" form:"tenant_id" validate:"omitempty,uuid"` // Optional, defaults to public tenant
-	Email       string `json:"email" form:"email" validate:"required,email"`
-	Password    string `json:"password" form:"password" validate:"required,min=8"`
-	FirstName   string `json:"first_name" form:"first_name" validate:"required"`
-	LastName    string `json:"last_name" form:"last_name" validate:"required"`
-	PhoneNumber string `json:"phone_number,omitempty" form:"phone_number"`
+	AppID                string `json:"app_id" form:"app_id" validate:"omitempty,uuid"`       // Optional, defaults to base app
+	TenantID             string `json:"tenant_id" form:"tenant_id" validate:"omitempty,uuid"` // Optional, defaults to public tenant
+	Email                string `json:"email" form:"email" validate:"required,email"`
+	Password             string `json:"password" form:"password" validate:"required,min=8"`
+	FirstName            string `json:"first_name" form:"first_name" validate:"required"`
+	LastName             string `json:"last_name" form:"last_name" validate:"required"`
+	PhoneNumber          string `json:"phone_number,omitempty" form:"phone_number"`
+	VerificationBaseURL  string `json:"-" form:"-"` // Internal field - set by handler from detected origin
+	PasswordResetBaseURL string `json:"-" form:"-"` // Internal field - set by handler for password reset
 }
 
 func NewUserService(userRepo repository.UserRepository, tenantRepo repository.TenantRepository, appRepo repository.AppRepository, sessionRepo repository.SessionRepository, emailService email.EmailService, cfg *config.Config) *UserService {
@@ -149,9 +151,22 @@ func (s *UserService) Register(ctx context.Context, req RegisterRequest) (*domai
 	if s.cfg.Email.Enabled && s.emailService != nil {
 		go func() {
 			emailCtx := context.Background()
-			if err := s.emailService.SendVerificationEmail(emailCtx, user.Email, user.FirstName, token); err != nil {
-				// Log error but don't fail the registration
-				fmt.Printf("Failed to send verification email to %s: %v\n", user.Email, err)
+
+			// Use custom base URL if provided, otherwise use config default
+			if req.VerificationBaseURL != "" {
+				// Use dynamic URL from handler (based on detected origin)
+				if err := s.emailService.SendVerificationEmailWithURL(emailCtx, user.Email, user.FirstName, token, req.VerificationBaseURL); err != nil {
+					fmt.Printf("Failed to send verification email to %s: %v\n", user.Email, err)
+				} else {
+					log.Printf("[USER_SERVICE] Verification email sent to %s with dynamic URL: %s", user.Email, req.VerificationBaseURL)
+				}
+			} else {
+				// Fallback to configured URL
+				if err := s.emailService.SendVerificationEmail(emailCtx, user.Email, user.FirstName, token); err != nil {
+					fmt.Printf("Failed to send verification email to %s: %v\n", user.Email, err)
+				} else {
+					log.Printf("[USER_SERVICE] Verification email sent to %s with config URL", user.Email)
+				}
 			}
 		}()
 	}

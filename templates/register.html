@@ -8,7 +8,6 @@
 <div id="registerFormWrapper">
     <form id="registerForm" autocomplete="off">
 
-        <input type="hidden" name="app_id" value="{{.AppID}}">
         <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
 
         <div class="field">
@@ -77,7 +76,7 @@
 
         <div class="form-footer-link login-link">
             <span>¿Ya tienes cuenta?</span>
-            <a href="/auth/login?app_id={{.AppID}}">Inicia sesión</a>
+            <a href="/auth/login">Inicia sesión</a>
         </div>
 
     </form>
@@ -172,7 +171,7 @@
 })();
 
 function goToLogin() {
-    window.location.href = "/auth/login?app_id={{.AppID}}";
+    window.location.href = "/auth/login";
 }
 </script>
 

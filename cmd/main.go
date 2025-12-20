@@ -74,6 +74,7 @@ func main() {
 	appRepo := postgres.NewAppRepository(db)
 	sessionRepo := postgres.NewSessionRepository(db)
 	roleRepo := postgres.NewRoleRepository(db)
+	authCodeRepo := postgres.NewAuthorizationCodeRepository(db)
 
 	// Initialize JWT token service
 	tokenService, err := jwt.NewTokenService(
@@ -117,12 +118,11 @@ func main() {
 	userService := service.NewUserService(userRepo, tenantRepo, appRepo, sessionRepo, emailService, cfg)
 	roleService := service.NewRoleService(roleRepo, userRepo)
 	tenantService := service.NewTenantService(tenantRepo, invitationRepo, userRepo)
+	appService := service.NewAppService(appRepo)
+	oauthService := service.NewOAuthService(authCodeRepo, appRepo)
 
 	// Set circular dependency: UserService needs AuthService for token blacklisting
 	userService.SetAuthService(authService)
-
-	// Initialize app service
-	appService := service.NewAppService(appRepo)
 
 	// Load HTML templates engine for Fiber
 	engine := html.New("./templates", ".html")
@@ -131,8 +131,9 @@ func main() {
 	log.Println("✓ HTML template engine initialized")
 
 	// Initialize handlers
-	authHandler := handler.NewAuthHandler(authService, validate)
-	userHandler := handler.NewUserHandler(userService, validate)
+	authHandler := handler.NewAuthHandler(authService, oauthService, validate)
+	oauthHandler := handler.NewOAuthHandler(oauthService, authService, roleService, validate)
+	userHandler := handler.NewUserHandler(userService, appService, validate)
 	roleHandler := handler.NewRoleHandler(roleService, validate)
 	passwordHandler := handler.NewPasswordHandler(authService, validate)
 	sessionHandler := handler.NewSessionHandler(sessionRepo)
@@ -178,6 +179,7 @@ func main() {
 	handler.SetupRoutes(
 		app,
 		authHandler,
+		oauthHandler,
 		userHandler,
 		roleHandler,
 		passwordHandler,

@@ -35,7 +35,6 @@
 
 <script>
     const token = '{{.Token}}';
-    const appID = '{{.AppID}}';
 
     // Auto-verify on page load
     window.addEventListener('DOMContentLoaded', function() {
@@ -87,7 +86,7 @@
     }
 
     function goToLogin() {
-        window.location.href = `/auth/login?app_id=${appID}`;
+        window.location.href = '/auth/login';
     }
 </script>
 

@@ -149,9 +149,16 @@ func (s *CloudCentinelEmailService) sendCustomEmail(ctx context.Context, to, sub
 }
 
 // SendVerificationEmail sends an email verification link to the user
+// Uses the configured VerificationBaseURL from EmailConfig
 func (s *CloudCentinelEmailService) SendVerificationEmail(ctx context.Context, to, name, token string) error {
+	return s.SendVerificationEmailWithURL(ctx, to, name, token, s.verificationBaseURL)
+}
+
+// SendVerificationEmailWithURL sends an email verification link with custom base URL
+// baseURL should be the full URL path (e.g., "http://localhost:8080/auth/verify-email")
+func (s *CloudCentinelEmailService) SendVerificationEmailWithURL(ctx context.Context, to, name, token, baseURL string) error {
 	// Build verification URL with query parameter
-	verificationURL := fmt.Sprintf("%s?token=%s", s.verificationBaseURL, token)
+	verificationURL := fmt.Sprintf("%s?token=%s", baseURL, token)
 
 	// Generate HTML content using template
 	htmlContent := VerificationEmailTemplate(name, verificationURL)
@@ -163,14 +170,21 @@ func (s *CloudCentinelEmailService) SendVerificationEmail(ctx context.Context, t
 		return fmt.Errorf("failed to send verification email: %w", err)
 	}
 
-	log.Printf("Verification email sent successfully to %s", to)
+	log.Printf("Verification email sent successfully to %s (baseURL: %s)", to, baseURL)
 	return nil
 }
 
 // SendPasswordResetEmail sends a password reset link to the user
+// Uses the configured PasswordResetBaseURL from EmailConfig
 func (s *CloudCentinelEmailService) SendPasswordResetEmail(ctx context.Context, to, name, token string) error {
+	return s.SendPasswordResetEmailWithURL(ctx, to, name, token, s.passwordResetBaseURL)
+}
+
+// SendPasswordResetEmailWithURL sends a password reset link with custom base URL
+// baseURL should be the full URL path (e.g., "http://localhost:8080/auth/reset-password")
+func (s *CloudCentinelEmailService) SendPasswordResetEmailWithURL(ctx context.Context, to, name, token, baseURL string) error {
 	// Build password reset URL with query parameter
-	resetURL := fmt.Sprintf("%s?token=%s", s.passwordResetBaseURL, token)
+	resetURL := fmt.Sprintf("%s?token=%s", baseURL, token)
 
 	// Generate HTML content using template
 	htmlContent := PasswordResetEmailTemplate(name, resetURL)
@@ -182,7 +196,7 @@ func (s *CloudCentinelEmailService) SendPasswordResetEmail(ctx context.Context, 
 		return fmt.Errorf("failed to send password reset email: %w", err)
 	}
 
-	log.Printf("Password reset email sent successfully to %s", to)
+	log.Printf("Password reset email sent successfully to %s (baseURL: %s)", to, baseURL)
 	return nil
 }
 

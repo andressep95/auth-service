@@ -77,6 +77,26 @@ func (r *appRepository) GetByClientID(ctx context.Context, clientID string) (*do
 	return &app, nil
 }
 
+func (r *appRepository) GetByWebOrigin(ctx context.Context, origin string) (*domain.App, error) {
+	query := `
+		SELECT id, name, client_id, client_secret_hash, description, redirect_uris, web_origins, logo_url, primary_color, created_at, updated_at
+		FROM apps
+		WHERE $1 = ANY(web_origins)
+		ORDER BY created_at DESC
+		LIMIT 1`
+
+	var app domain.App
+	err := r.db.GetContext(ctx, &app, query, origin)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // No app found for this origin
+		}
+		return nil, fmt.Errorf("failed to get app by web origin: %w", err)
+	}
+
+	return &app, nil
+}
+
 func (r *appRepository) List(ctx context.Context) ([]*domain.App, error) {
 	query := `
 		SELECT id, name, client_id, client_secret_hash, description, redirect_uris, web_origins, logo_url, primary_color, created_at, updated_at

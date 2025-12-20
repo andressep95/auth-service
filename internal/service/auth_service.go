@@ -40,6 +40,11 @@ type LoginRequest struct {
 	Password string `json:"password" form:"password" validate:"required,min=8"`
 	AppID    string `json:"app_id" form:"app_id" validate:"omitempty,uuid"`       // Optional, defaults to base app
 	TenantID string `json:"tenant_id" form:"tenant_id" validate:"omitempty,uuid"` // Optional, defaults to public tenant
+	// OAuth2 Authorization Code Flow parameters
+	RedirectURI  string `json:"redirect_uri" form:"redirect_uri"`      // OAuth2: redirect URI after authorization
+	ResponseType string `json:"response_type" form:"response_type"`    // OAuth2: should be "code" for authorization code flow
+	State        string `json:"state" form:"state"`                    // OAuth2: CSRF protection token
+	Scope        string `json:"scope" form:"scope"`                    // OAuth2: requested scopes (space-separated)
 }
 
 type LoginResponse struct {
@@ -526,4 +531,67 @@ func (s *AuthService) RegisterWithInvitation(ctx context.Context, req RegisterWi
 	}
 
 	return response, redirectURL, nil
+}
+
+// GenerateAccessToken generates an access token for a user (used by OAuth2 flow)
+func (s *AuthService) GenerateAccessToken(userID uuid.UUID, appID uuid.UUID, roles []string) (string, error) {
+	// Get user from database
+	user, err := s.userRepo.GetByID(context.Background(), userID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get user: %w", err)
+	}
+
+	// Generate access token only
+	tokenPair, err := s.tokenService.GenerateTokenPair(user, roles, appID, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate token: %w", err)
+	}
+
+	return tokenPair.AccessToken, nil
+}
+
+// GenerateRefreshToken generates a refresh token and creates a session (used by OAuth2 flow)
+func (s *AuthService) GenerateRefreshToken(ctx context.Context, userID uuid.UUID, appID uuid.UUID, userAgent, ipAddress string) (string, error) {
+	// Get user from database
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get user: %w", err)
+	}
+
+	// Get user roles
+	roles, err := s.userRepo.GetUserRoles(ctx, userID, appID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get user roles: %w", err)
+	}
+
+	// Generate session ID
+	sessionID := uuid.New()
+
+	// Generate token pair with session ID
+	tokenPair, err := s.tokenService.GenerateTokenPair(user, roles, appID, &sessionID)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate token pair: %w", err)
+	}
+
+	// Hash the refresh token before storing
+	hashedRefreshToken := hashToken(tokenPair.RefreshToken)
+
+	// Create session
+	session := &domain.Session{
+		ID:               sessionID,
+		UserID:           userID,
+		AppID:            appID,
+		TenantID:         user.TenantID,
+		RefreshTokenHash: hashedRefreshToken,
+		UserAgent:        &userAgent,
+		IPAddress:        &ipAddress,
+		ExpiresAt:        time.Now().Add(s.cfg.JWT.RefreshTokenExpiry),
+		CreatedAt:        time.Now(),
+	}
+
+	if err := s.sessionRepo.Create(ctx, session); err != nil {
+		return "", fmt.Errorf("failed to create session: %w", err)
+	}
+
+	return tokenPair.RefreshToken, nil
 }

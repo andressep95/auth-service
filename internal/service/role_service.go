@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/andressep95/auth-service/internal/domain"
@@ -174,4 +175,27 @@ func (s *RoleService) HasRole(ctx context.Context, userID uuid.UUID, roleName st
 	}
 
 	return false, nil
+}
+
+// GetUserRoleNames returns a slice of role names for a user (used by OAuth2 flow)
+func (s *RoleService) GetUserRoleNames(ctx context.Context, userID uuid.UUID) ([]string, error) {
+	// Get user to determine their app_id
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+
+	// Get user roles for their app
+	roles, err := s.roleRepo.GetUserRolesByApp(ctx, userID, user.AppID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user roles: %w", err)
+	}
+
+	// Extract role names
+	roleNames := make([]string, len(roles))
+	for i, role := range roles {
+		roleNames[i] = role.Name
+	}
+
+	return roleNames, nil
 }

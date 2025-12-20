@@ -2,7 +2,19 @@
 <div id="serverError" class="alert alert-error" style="display: none;"></div>
 
 <form id="loginForm" method="POST" action="/api/v1/auth/login">
-    <input type="hidden" name="app_id" value="{{.AppID}}">
+    <!-- OAuth2 parameters (hidden fields) -->
+    {{if .RedirectURI}}
+    <input type="hidden" name="redirect_uri" value="{{.RedirectURI}}">
+    {{end}}
+    {{if .State}}
+    <input type="hidden" name="state" value="{{.State}}">
+    {{end}}
+    {{if .ResponseType}}
+    <input type="hidden" name="response_type" value="{{.ResponseType}}">
+    {{end}}
+    {{if .Scope}}
+    <input type="hidden" name="scope" value="{{.Scope}}">
+    {{end}}
 
     <div class="field">
         <label for="email">Email</label>
@@ -51,12 +63,12 @@
     </button>
 
     <div class="forgot-password-link">
-        <a href="/auth/forgot-password?app_id={{.AppID}}">¿Olvidaste tu contraseña?</a>
+        <a href="/auth/forgot-password">¿Olvidaste tu contraseña?</a>
     </div>
 
     <div class="form-footer-link register-link">
         <span>¿No tienes cuenta? </span>
-        <a href="/auth/register?app_id={{.AppID}}" class="link-button">Regístrate</a>
+        <a href="/auth/register" class="link-button">Regístrate</a>
     </div>
 </form>
 <script>
@@ -148,27 +160,46 @@
         // Submit
         // -------------------------
         form.addEventListener('submit', async (e) => {
-            e.preventDefault();
             hasSubmitted = true;
-    
-            if (!validateForm()) return;
-    
+
+            if (!validateForm()) {
+                e.preventDefault();
+                return;
+            }
+
+            // Check if this is an OAuth2 flow
+            const formData = new FormData(form);
+            const isOAuth2 = formData.get('redirect_uri') && formData.get('response_type') === 'code';
+
+            if (isOAuth2) {
+                // OAuth2 flow: Let the form submit naturally (server will redirect)
+                // Show loading state but don't prevent submit
+                submitBtn.disabled = true;
+                btnText.textContent = 'Autorizando...';
+                btnText.style.display = 'inline';
+                btnSpinner.style.display = 'inline-block';
+                return; // Allow form to submit
+            }
+
+            // Standard API flow: Prevent default and handle with JavaScript
+            e.preventDefault();
+
             submitBtn.disabled = true;
             btnText.style.display = 'none';
             btnSpinner.style.display = 'inline-block';
             hideError(serverError);
-    
-            const data = Object.fromEntries(new FormData(form).entries());
-    
+
+            const data = Object.fromEntries(formData.entries());
+
             try {
                 const response = await fetch('/api/v1/auth/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data),
                 });
-    
+
                 const result = await response.json();
-    
+
                 if (response.ok) {
                     window.location.href = result.redirect_url || '/dashboard';
                 } else {
