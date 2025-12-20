@@ -28,12 +28,12 @@ type UserService struct {
 }
 
 type RegisterRequest struct {
-	AppID     string `json:"app_id" form:"app_id" validate:"omitempty,uuid"`            // Optional, defaults to base app
-	TenantID  string `json:"tenant_id" form:"tenant_id" validate:"omitempty,uuid"`      // Optional, defaults to public tenant
-	Email     string `json:"email" form:"email" validate:"required,email"`
-	Password  string `json:"password" form:"password" validate:"required,min=8"`
-	FirstName string `json:"first_name" form:"first_name" validate:"required"`
-	LastName  string `json:"last_name" form:"last_name" validate:"required"`
+	AppID       string `json:"app_id" form:"app_id" validate:"omitempty,uuid"`       // Optional, defaults to base app
+	TenantID    string `json:"tenant_id" form:"tenant_id" validate:"omitempty,uuid"` // Optional, defaults to public tenant
+	Email       string `json:"email" form:"email" validate:"required,email"`
+	Password    string `json:"password" form:"password" validate:"required,min=8"`
+	FirstName   string `json:"first_name" form:"first_name" validate:"required"`
+	LastName    string `json:"last_name" form:"last_name" validate:"required"`
 	PhoneNumber string `json:"phone_number,omitempty" form:"phone_number"`
 }
 
@@ -54,19 +54,17 @@ func (s *UserService) SetAuthService(authService *AuthService) {
 }
 
 func (s *UserService) Register(ctx context.Context, req RegisterRequest) (*domain.User, error) {
-	// Parse and validate app_id (use base app if not provided)
 	var appID uuid.UUID
 	var err error
 
+	// Parse and validate app_id (REQUIRED)
 	if req.AppID == "" {
-		// Use base app (7057e69d-818b-45db-b39b-9d1c84aca142)
-		appID = uuid.MustParse("7057e69d-818b-45db-b39b-9d1c84aca142")
-		log.Printf("[USER_SERVICE] No app_id provided, using base app: %s", appID)
-	} else {
-		appID, err = uuid.Parse(req.AppID)
-		if err != nil {
-			return nil, errors.New("invalid app_id format")
-		}
+		return nil, errors.New("app_id is required")
+	}
+
+	appID, err = uuid.Parse(req.AppID)
+	if err != nil {
+		return nil, errors.New("invalid app_id format")
 	}
 
 	// Verify that the app exists
