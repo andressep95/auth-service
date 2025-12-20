@@ -21,8 +21,12 @@ func NewAppHandler(appService *service.AppService, validator *validator.Validato
 }
 
 type CreateAppRequest struct {
-	Name        string `json:"name" validate:"required,min=2,max=100"`
-	Description string `json:"description" validate:"max=500"`
+	Name         string   `json:"name" validate:"required,min=2,max=100"`
+	Description  string   `json:"description" validate:"max=500"`
+	RedirectURIs []string `json:"redirect_uris" validate:"omitempty,dive,url"`
+	WebOrigins   []string `json:"web_origins" validate:"omitempty,dive,url"`
+	LogoURL      *string  `json:"logo_url" validate:"omitempty,url"`
+	PrimaryColor string   `json:"primary_color" validate:"omitempty,hexcolor"`
 }
 
 // CreateApp creates a new application (super admin only)
@@ -42,7 +46,15 @@ func (h *AppHandler) CreateApp(c *fiber.Ctx) error {
 		})
 	}
 
-	app, err := h.appService.CreateApp(c.Context(), req.Name, req.Description)
+	app, err := h.appService.CreateApp(
+		c.Context(),
+		req.Name,
+		req.Description,
+		req.RedirectURIs,
+		req.WebOrigins,
+		req.LogoURL,
+		req.PrimaryColor,
+	)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{
 			"error":   true,
@@ -54,11 +66,15 @@ func (h *AppHandler) CreateApp(c *fiber.Ctx) error {
 	return c.Status(http.StatusCreated).JSON(fiber.Map{
 		"message": "App created successfully",
 		"app": fiber.Map{
-			"id":          app.ID,
-			"name":        app.Name,
-			"client_id":   app.ClientID,
-			"description": app.Description,
-			"created_at":  app.CreatedAt,
+			"id":            app.ID,
+			"name":          app.Name,
+			"client_id":     app.ClientID,
+			"description":   app.Description,
+			"redirect_uris": app.RedirectURIs,
+			"web_origins":   app.WebOrigins,
+			"logo_url":      app.LogoURL,
+			"primary_color": app.PrimaryColor,
+			"created_at":    app.CreatedAt,
 		},
 	})
 }

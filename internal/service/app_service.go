@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/andressep95/auth-service/internal/domain"
@@ -21,7 +22,7 @@ func NewAppService(appRepo repository.AppRepository) *AppService {
 }
 
 // CreateApp creates a new application
-func (s *AppService) CreateApp(ctx context.Context, name, description string) (*domain.App, error) {
+func (s *AppService) CreateApp(ctx context.Context, name, description string, redirectURIs, webOrigins []string, logoURL *string, primaryColor string) (*domain.App, error) {
 	// Generate client_id from name (lowercase, replace spaces with hyphens)
 	clientID := strings.ToLower(strings.ReplaceAll(name, " ", "-"))
 
@@ -31,12 +32,27 @@ func (s *AppService) CreateApp(ctx context.Context, name, description string) (*
 		return nil, errors.New("app with this name already exists")
 	}
 
+	// Set default values if not provided
+	if redirectURIs == nil {
+		redirectURIs = []string{}
+	}
+	if webOrigins == nil {
+		webOrigins = []string{}
+	}
+	if primaryColor == "" {
+		primaryColor = "#05C383" // Default green color
+	}
+
 	app := &domain.App{
-		ID:               uuid.New(), // UUID aleatorio
+		ID:               uuid.New(),
 		Name:             name,
 		ClientID:         clientID,
-		ClientSecretHash: "placeholder", // No usado por ahora
-		Description:      description,
+		ClientSecretHash: "placeholder", // To be implemented with OAuth2
+		Description:      &description,
+		RedirectURIs:     redirectURIs,
+		WebOrigins:       webOrigins,
+		LogoURL:          logoURL,
+		PrimaryColor:     primaryColor,
 	}
 
 	if err := s.appRepo.Create(ctx, app); err != nil {
@@ -58,5 +74,10 @@ func (s *AppService) GetAppByID(ctx context.Context, id string) (*domain.App, er
 		return nil, errors.New("invalid app ID")
 	}
 
-	return s.appRepo.GetByID(ctx, appID)
+	app, err := s.appRepo.GetByID(ctx, appID)
+	if err != nil {
+		fmt.Println("SERVICE: error", err)
+		return nil, err
+	}
+	return app, nil
 }

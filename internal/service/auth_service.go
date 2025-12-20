@@ -38,8 +38,8 @@ type AuthService struct {
 type LoginRequest struct {
 	Email    string `json:"email" form:"email" validate:"required,email"`
 	Password string `json:"password" form:"password" validate:"required,min=8"`
-	AppID    string `json:"app_id" form:"app_id" validate:"omitempty,uuid"`            // Optional, defaults to base app
-	TenantID string `json:"tenant_id" form:"tenant_id" validate:"omitempty,uuid"`      // Optional, defaults to public tenant
+	AppID    string `json:"app_id" form:"app_id" validate:"omitempty,uuid"`       // Optional, defaults to base app
+	TenantID string `json:"tenant_id" form:"tenant_id" validate:"omitempty,uuid"` // Optional, defaults to public tenant
 }
 
 type LoginResponse struct {
@@ -508,7 +508,7 @@ func (s *AuthService) RegisterWithInvitation(ctx context.Context, req RegisterWi
 
 	// 12. Build redirect URL with tokens
 	redirectURL := fmt.Sprintf("%s?access_token=%s&refresh_token=%s&tenant_id=%s",
-		app.RedirectURL,
+		app.RedirectURIs[0],
 		tokenPair.AccessToken,
 		tokenPair.RefreshToken,
 		tenant.ID.String(),

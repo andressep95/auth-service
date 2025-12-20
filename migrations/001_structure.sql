@@ -19,11 +19,10 @@ CREATE TABLE IF NOT EXISTS apps (
     client_id VARCHAR(64) NOT NULL,
     client_secret_hash VARCHAR(255) NOT NULL,
     description TEXT,
-    redirect_uris TEXT[],
-    redirect_url TEXT NOT NULL DEFAULT 'http://localhost:3000/auth/callback',
+    redirect_uris TEXT[] DEFAULT ARRAY[]::TEXT[],
+    web_origins TEXT[] DEFAULT ARRAY[]::TEXT[],
     logo_url TEXT,
     primary_color VARCHAR(7) DEFAULT '#05C383',
-    allowed_scopes TEXT[],
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

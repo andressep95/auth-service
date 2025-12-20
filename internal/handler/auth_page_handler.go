@@ -2,8 +2,8 @@ package handler
 
 import (
 	"log"
-	"os"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/andressep95/auth-service/internal/service"
@@ -64,7 +64,6 @@ func (h *AuthPageHandler) ShowLogin(c *fiber.Ctx) error {
 // ShowRegister renders the register page
 // GET /auth/register?app_id=xxx
 func (h *AuthPageHandler) ShowRegister(c *fiber.Ctx) error {
-	log.Printf("[AUTH_PAGE] ShowRegister called - Path: %s", c.Path())
 
 	appIDStr := c.Query("app_id")
 	if appIDStr == "" {
@@ -99,7 +98,6 @@ func (h *AuthPageHandler) ShowRegister(c *fiber.Ctx) error {
 		})
 	}
 
-
 	data := fiber.Map{
 		"Title":        "Crear cuenta",
 		"AppName":      app.Name,
@@ -112,7 +110,6 @@ func (h *AuthPageHandler) ShowRegister(c *fiber.Ctx) error {
 		data["Logo"] = *app.LogoURL
 	}
 
-	log.Printf("[AUTH_PAGE] Rendering register template with data: Title=%s, AppID=%s", data["Title"], data["AppID"])
 	// Merge content block name into data
 	data["CSRFToken"] = csrfToken
 	data["Content"] = "register-content"

@@ -10,6 +10,7 @@ import (
 	"github.com/andressep95/auth-service/internal/repository"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 )
 
 type appRepository struct {
@@ -25,11 +26,12 @@ func (r *appRepository) Create(ctx context.Context, app *domain.App) error {
 	app.UpdatedAt = time.Now()
 
 	query := `
-		INSERT INTO apps (id, name, client_id, client_secret_hash, description, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)`
+		INSERT INTO apps (id, name, client_id, client_secret_hash, description, redirect_uris, web_origins, logo_url, primary_color, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`
 
 	_, err := r.db.ExecContext(ctx, query,
 		app.ID, app.Name, app.ClientID, app.ClientSecretHash, app.Description,
+		pq.Array(app.RedirectURIs), pq.Array(app.WebOrigins), app.LogoURL, app.PrimaryColor,
 		app.CreatedAt, app.UpdatedAt)
 
 	if err != nil {
@@ -41,7 +43,7 @@ func (r *appRepository) Create(ctx context.Context, app *domain.App) error {
 
 func (r *appRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.App, error) {
 	query := `
-		SELECT id, name, client_id, client_secret_hash, description, logo_url, primary_color, created_at, updated_at
+		SELECT id, name, client_id, client_secret_hash, description, redirect_uris, web_origins, logo_url, primary_color, created_at, updated_at
 		FROM apps
 		WHERE id = $1`
 
@@ -59,7 +61,7 @@ func (r *appRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.App,
 
 func (r *appRepository) GetByClientID(ctx context.Context, clientID string) (*domain.App, error) {
 	query := `
-		SELECT id, name, client_id, client_secret_hash, description, created_at, updated_at
+		SELECT id, name, client_id, client_secret_hash, description, redirect_uris, web_origins, logo_url, primary_color, created_at, updated_at
 		FROM apps
 		WHERE client_id = $1`
 
@@ -77,7 +79,7 @@ func (r *appRepository) GetByClientID(ctx context.Context, clientID string) (*do
 
 func (r *appRepository) List(ctx context.Context) ([]*domain.App, error) {
 	query := `
-		SELECT id, name, client_id, client_secret_hash, description, created_at, updated_at
+		SELECT id, name, client_id, client_secret_hash, description, redirect_uris, web_origins, logo_url, primary_color, created_at, updated_at
 		FROM apps
 		ORDER BY created_at DESC`
 
@@ -95,10 +97,12 @@ func (r *appRepository) Update(ctx context.Context, app *domain.App) error {
 
 	query := `
 		UPDATE apps
-		SET name = $1, description = $2, updated_at = $3
-		WHERE id = $4`
+		SET name = $1, description = $2, redirect_uris = $3, web_origins = $4, logo_url = $5, primary_color = $6, updated_at = $7
+		WHERE id = $8`
 
-	result, err := r.db.ExecContext(ctx, query, app.Name, app.Description, app.UpdatedAt, app.ID)
+	result, err := r.db.ExecContext(ctx, query,
+		app.Name, app.Description, pq.Array(app.RedirectURIs), pq.Array(app.WebOrigins),
+		app.LogoURL, app.PrimaryColor, app.UpdatedAt, app.ID)
 	if err != nil {
 		return fmt.Errorf("failed to update app: %w", err)
 	}
