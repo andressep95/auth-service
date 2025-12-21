@@ -105,6 +105,21 @@ body {
     outline: none;
 }
 
+.field input.p-invalid {
+    border-color: #fc8181;
+}
+
+.field input.p-invalid:focus {
+    border-color: #f56565;
+    box-shadow: 0 0 0 3px rgba(252, 129, 129, 0.2);
+}
+
+.p-error {
+    color: #c53030;
+    font-size: 13px;
+    margin-top: 4px;
+}
+
 /* ============================= */
 /* Buttons */
 /* ============================= */
@@ -132,6 +147,25 @@ body {
     transform: translateY(-1px);
 }
 
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.btn-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
 /* ============================= */
 /* Password Toggle */
 /* ============================= */
@@ -149,6 +183,25 @@ body {
     border: none;
     cursor: pointer;
     color: var(--text-muted);
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.password-toggle svg {
+    width: 20px;
+    height: 20px;
+    stroke: var(--text-muted);
+}
+
+.password-toggle:hover svg {
+    stroke: var(--primary-color);
+}
+
+.password-toggle .eye-open,
+.password-toggle .eye-closed {
+    transition: opacity 0.2s ease;
 }
 
 /* ============================= */
@@ -267,34 +320,58 @@ body {
 }
 
 /* ============================= */
-/* Forgot Password View */
+/* Shared Auth Pages (Forgot/Reset) */
 /* ============================= */
 
-.forgot-content {
+.forgot-content,
+.reset-content {
     text-align: center;
     padding: var(--space-md);
 }
 
-.forgot-content .forgot-icon-wrapper {
+.forgot-icon-wrapper,
+.reset-icon-wrapper {
     margin-bottom: var(--space-lg);
 }
 
-.forgot-content .forgot-icon {
+.forgot-icon,
+.reset-icon {
     width: 64px;
     height: 64px;
     color: var(--text-muted);
+    stroke: var(--text-muted);
 }
 
-.forgot-content h2 {
+.forgot-content h2,
+.reset-content h2 {
     font-size: 24px;
     font-weight: 600;
     margin-bottom: var(--space-xs);
+    color: var(--text-main);
 }
 
-.forgot-content p {
+.forgot-content p,
+.reset-content > p {
     color: var(--text-muted);
     margin-bottom: var(--space-xl);
     line-height: 1.5;
+}
+
+.reset-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    text-align: left;
+}
+
+/* ============================= */
+/* Alert Success */
+/* ============================= */
+
+.alert-success {
+    background: #d1fae5;
+    color: #065f46;
+    border-color: #6ee7b7;
 }
 
 /* ============================= */

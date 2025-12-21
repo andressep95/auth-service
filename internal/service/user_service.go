@@ -300,7 +300,7 @@ func (s *UserService) ResendVerificationEmail(ctx context.Context, email string)
 }
 
 // RequestPasswordReset generates a password reset token and sends it via email
-func (s *UserService) RequestPasswordReset(ctx context.Context, email, appIDStr string) error {
+func (s *UserService) RequestPasswordReset(ctx context.Context, email, appIDStr, resetBaseURL string) error {
 	log.Printf("[USER_SERVICE] Password reset requested for email: %s, app_id: %s", email, appIDStr)
 
 	// Parse app_id
@@ -341,11 +341,22 @@ func (s *UserService) RequestPasswordReset(ctx context.Context, email, appIDStr 
 	// Send password reset email
 	if s.cfg.Email.Enabled && s.emailService != nil {
 		log.Printf("[USER_SERVICE] Calling email service to send password reset email to %s", user.Email)
-		if err := s.emailService.SendPasswordResetEmail(ctx, user.Email, user.FirstName, token); err != nil {
-			// Log error but don't fail (user already has token in DB)
-			log.Printf("[USER_SERVICE] ERROR: Failed to send password reset email to %s: %v", user.Email, err)
+
+		// Use custom base URL if provided, otherwise use config default
+		if resetBaseURL != "" {
+			// Use dynamic URL from handler (based on detected origin)
+			if err := s.emailService.SendPasswordResetEmailWithURL(ctx, user.Email, user.FirstName, token, resetBaseURL); err != nil {
+				log.Printf("[USER_SERVICE] ERROR: Failed to send password reset email to %s: %v", user.Email, err)
+			} else {
+				log.Printf("[USER_SERVICE] Password reset email sent successfully to %s with dynamic URL: %s", user.Email, resetBaseURL)
+			}
 		} else {
-			log.Printf("[USER_SERVICE] Password reset email sent successfully to %s", user.Email)
+			// Fallback to configured URL
+			if err := s.emailService.SendPasswordResetEmail(ctx, user.Email, user.FirstName, token); err != nil {
+				log.Printf("[USER_SERVICE] ERROR: Failed to send password reset email to %s: %v", user.Email, err)
+			} else {
+				log.Printf("[USER_SERVICE] Password reset email sent successfully to %s with config URL", user.Email)
+			}
 		}
 	} else {
 		log.Printf("[USER_SERVICE] Email service disabled or not configured (Enabled: %v, Service: %v)", s.cfg.Email.Enabled, s.emailService != nil)

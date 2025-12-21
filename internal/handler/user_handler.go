@@ -243,7 +243,15 @@ func (h *UserHandler) ForgotPassword(c *fiber.Ctx) error {
 		appID = "7057e69d-818b-45db-b39b-9d1c84aca142"
 	}
 
-	if err := h.userService.RequestPasswordReset(c.Context(), req.Email, appID); err != nil {
+	// Build password reset URL from detected origin
+	origin := getOriginFromRequest(c)
+	resetBaseURL := ""
+	if origin != "" {
+		resetBaseURL = origin + "/auth/reset-password"
+		log.Printf("[USER_HANDLER] Using dynamic reset URL: %s", resetBaseURL)
+	}
+
+	if err := h.userService.RequestPasswordReset(c.Context(), req.Email, appID, resetBaseURL); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": err.Error(),
 		})
